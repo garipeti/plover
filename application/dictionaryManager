@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+
+import sys
+import dictionarymanager.gui.main
+
+try:
+    gui = dictionarymanager.gui.main.DictionaryManagerGUI()
+    gui.MainLoop()
+except:
+    print "Unexpected error:", sys.exc_info()[0]
+    raise
