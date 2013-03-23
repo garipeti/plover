@@ -1,4 +1,4 @@
-from types import ListType
+
 from wx.grid import PyGridCellRenderer
 import wx
 
@@ -8,6 +8,7 @@ class CutomGridCellRenderer(PyGridCellRenderer):
         self.store = store
 
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        #text = ", ".join( grid.GetTable().getValueAsCustom(row, col, "list"))
         text = grid.GetCellValue(row, col)
         if text[:7] == "__dic__":
             text = self.store.indexStringToDictionaryFilenameString(text)

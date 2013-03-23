@@ -19,8 +19,116 @@ class Store():
         self.strokes = {}
         self.count = 0
         self.rows = []
+        self.filteredRows = []
+        
+        # filtering
+        self.filters = []
+
+        #sorting
+        self.cmpFn = lambda a, b: 0 if a["stroke"] == b["stroke"] else 1 if a["stroke"] > b["stroke"] else -1
+        
+        # subscribers
+        self.subscribers = {"insert": [], "delete": [], "update": [], "progress": []}
+        
+    def getCount(self):
+        return self.count
+        
+    def subscribe(self, event, callback):
+        self.subscribers[event].append(callback)
     
-    def loadDictionary(self, filename, onChange):
+    def unsubscribe(self, event, callback):
+        if callback in self.subscribers[event]:
+            self.subscribers[event].remove(callback)
+    
+    def fireEvent(self, event, *args, **kwargs):
+        for callback in self.subscribers[event]:
+            callback(*args, **kwargs)
+            
+    def sort(self, column, reverse):
+        if reverse:
+            self.cmpFn = lambda a, b: 0 if a["stroke"] == b["stroke"] else 1 if a["stroke"] > b["stroke"] else -1
+        else:
+            self.cmpFn = lambda a, b: 0 if a["stroke"] == b["stroke"] else 1 if a["stroke"] < b["stroke"] else -1
+        self._sort()
+    
+    def _sort(self):
+        index = 0
+        for row in self.rows:
+            if self.filterFn(row):
+                self.fireEvent("delete", row, index)
+                index += 1
+        self.rows.sort(cmp=self.cmpFn)
+        index = 0
+        for row in self.rows:
+            if self.filterFn(row):
+                self.fireEvent("insert", row, index)
+                index += 1
+        
+    def hideItem(self, item, index = None):
+        if index == None and item in self.rows:
+            index = self.rows.index(item)
+        if index != None:
+            self.fireEvent("delete", item, index)
+            self.filteredRows.append(self.rows.pop(index))
+    
+    def showItem(self, item, currentIndex = None):
+        if currentIndex == None:
+            currentIndex = self.filteredRows.index(item)
+        pos = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
+        self.rows.insert(pos, self.filteredRows.pop(currentIndex))
+        self.fireEvent("insert", item, pos)
+        
+    def repositionItem(self, item):
+        self.hideItem(item)
+        self.showItem(item)
+    
+    def findPlaceForNewItem(self, item, start, end):
+        if start > end:
+            return start
+        middle = (start + end) / 2
+        cmpd = self.cmpFn(self.rows[middle], item)
+        if cmpd > 0:
+            return self.findPlaceForNewItem(item, start, middle-1)
+        elif cmpd < 0:
+            return self.findPlaceForNewItem(item, middle+1, end)
+        else:
+            return self.findPlaceForNewItem(item, middle+1, end)
+    
+    def filterFn(self, row, filters = None):
+        if filters == None:
+            filters = self.filters
+        return not (False in [(filter["pattern"] in row[filter["column"]]) for filter in filters])
+    
+    def filter(self, newFilters):
+        oldFilters = self.filters
+        self.filters = newFilters
+        
+        progress = Progress(len(self.rows) + len(self.filteredRows))
+        
+        # apply new filter
+        for index in range(len(self.rows)-1, -1, -1):
+            item = self.rows[index]
+            did = self.filterFn(item, oldFilters)
+            does = self.filterFn(item, self.filters)
+            if not does and did:
+                self.hideItem(item, index)
+            
+            current = progress.next()
+            if current != None:
+                self.fireEvent("progress", current)
+                
+        for index in range(len(self.filteredRows)-1, -1, -1):
+            item = self.filteredRows[index]
+            did = self.filterFn(item, oldFilters)
+            does = self.filterFn(item, self.filters)
+            if does and not did:
+                self.showItem(item, index)
+            
+            current = progress.next()
+            if current != None:
+                self.fireEvent("progress", current)
+        
+    def loadDictionary(self, filename):
         """ Load dictionary from file """
         
         loader = self.getLoader(filename)
@@ -30,24 +138,50 @@ class Store():
                 self.dictionaries[filename] = dictionary
                 self.dictionaryFilenames.append(filename)
                 self.dictionaryNames.append(self.getDictionaryShortName(filename))
-                length = len(dictionary)
-                progress = length / 100
-                currentStep = progress
-                currentProgress = 0
+                
+                # precache indexes for identifiers
+                indexes = {}
+                for index, row in enumerate(self.rows):
+                    indexes[self.getIdentifier(row["stroke"], row["translation"])] = index
+                
+                newItems = []
+                progress = Progress(len(dictionary))
+                current = None
                 for stroke, translation in dictionary.iteritems():
                     identifier = self.getIdentifier(stroke, translation)
-                    if identifier not in self.strokes:
-                        item = {"stroke": stroke, "translation": translation, "dictionaries": [], "index": self.count}
+                    isNew = identifier not in self.strokes
+                    if isNew:
+                        item = {"stroke": stroke, "translation": translation, "dictionaries": []}
                         self.strokes[identifier] = item
-                        self.rows.append(item)
-                        self.count += 1
                     else:
                         item = self.strokes[identifier]
+                        
                     item["dictionaries"].append(filename)
-                    onChange(item["index"], identifier, item, currentProgress+1 if self.count > currentStep else None)
-                    if self.count > currentStep:
-                        currentStep += progress
-                        currentProgress += 1
+                    
+                    # we don't handle the situation when this is an update 
+                    # and the row is filtered out with its new value
+                    if self.filterFn(item):
+                        if isNew:
+                            newItems.append(item)
+                        else:
+                            current = progress.next()
+                            self.fireEvent("update", item, indexes[identifier])
+                    elif isNew:
+                            current = progress.next()
+                            self.filteredRows.append(item)
+                    
+                    if current != None:
+                        self.fireEvent("progress", current)
+                        current = None
+                    
+                for item in newItems:
+                    index = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
+                    self.rows.insert(index, item)
+                    self.fireEvent("insert", item, index)
+                    current = progress.next()
+                    if current != None:
+                        self.fireEvent("progress", current)
+                        current = None
 
     def saveDictionaries(self):
         """ Save dictionaries to files """
@@ -75,6 +209,9 @@ class Store():
         """ Generate a unique identifier """
         return "__ID__" + stroke + "___SEP___" + translation
     
+    def setFilter(self, filterFn):
+        self.filterFn = filterFn
+    
     def findItem(self, column, pattern, index):
         """ Find next item which matches in the given attribute """
         
@@ -85,10 +222,26 @@ class Store():
                 return i
         return -1
     
+    def changeStroke(self, row, stroke):
+        """ Change Stroke in item """
+        
+        item = self.rows[row]
+        item["stroke"] = stroke
+        self.repositionItem(item)
+        
+    def changeTranslation(self, row, translation):
+        """ Change Translation in item """
+        
+        item = self.rows[row]
+        item["translation"] = translation
+        self.repositionItem(item)
+        
     def changeDictionaries(self, row, dictionaries):
         """ Change dictionary list for the item """
         
-        self.rows[row]["dictionaries"] = self.indexStringToDictionaryList(dictionaries)
+        item = self.rows[row]
+        item["dictionaries"] = self.indexStringToDictionaryList(dictionaries)
+        self.repositionItem(item)
     
     def getDictionaryNames(self):
         return self.dictionaryNames
@@ -131,5 +284,21 @@ class Store():
     def getDictionaryIndexByShortName(self, name):
         if self.getDictionaryShortName(name) in self.dictionaryNames:
             return self.dictionaryNames.index(name)
+        return None
+    
+class Progress():
+    def __init__(self, length):
+        self.length = length
+        self.loaded = 0
+        self.onePercent = length / 100
+        self.nextPercent = self.onePercent
+        self.progress = 0
+        
+    def next(self):
+        self.loaded += 1
+        if self.loaded > self.nextPercent:
+            self.nextPercent += self.onePercent
+            self.progress += 1
+            return self.progress
         return None
         

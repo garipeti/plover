@@ -11,7 +11,7 @@ from dictionarymanager.gui.widget.CustomGridCellRenderer import \
     CutomGridCellRenderer
 from dictionarymanager.store import Store
 from wx.grid import EVT_GRID_CELL_CHANGE
-from wxPython._core import wxYES_NO, wxCENTER, wxOK
+from wxPython.grid import wxGridCellAttr
 import os
 import wx
 
@@ -45,6 +45,9 @@ class Frame(wx.Frame):
         # dictionary store
         self.store = Store.Store()
         
+        # auxiliary variables
+        self._cellChanging = False
+        
         # menu
         menubar = wx.MenuBar()
         fileMenu = wx.Menu()
@@ -58,32 +61,43 @@ class Frame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._quit, quitMenuItem)
 
         # search fields
-        self.searchField = wx.TextCtrl(self, wx.ID_ANY, value="Enter a stroke or a translation")
-        self.searchStroke = wx.Button(self, wx.ID_ANY, label="Search Stroke")
-        self.searchTranslation = wx.Button(self, wx.ID_ANY, label="Search Translation")
+        self.searchStrokeField = wx.TextCtrl(self, wx.ID_ANY, value="")
+        self.searchTranslationField = wx.TextCtrl(self, wx.ID_ANY, value="")
         
-        self.searchStroke.Bind(wx.EVT_BUTTON, self._onStrokeSearch)
-        self.searchTranslation.Bind(wx.EVT_BUTTON, self._onTranslationSearch)
+        self.searchStrokeField.Bind(wx.EVT_KEY_UP, self._onFilterChange)
+        self.searchTranslationField.Bind(wx.EVT_KEY_UP, self._onFilterChange)
         
         # search fields layout
         searchSizer = wx.BoxSizer(wx.HORIZONTAL)
-        searchSizer.Add(self.searchField, 1, wx.EXPAND)
-        searchSizer.Add(self.searchStroke, 0, wx.EXPAND)
-        searchSizer.Add(self.searchTranslation, 0, wx.EXPAND)
+        searchSizer.Add(wx.StaticText(self, label="Enter a stroke"), 0, wx.EXPAND)
+        searchSizer.Add(self.searchStrokeField, 1, wx.EXPAND)
+        searchSizer.Add(wx.StaticText(self, label="Enter a translation"), 0, wx.EXPAND)
+        searchSizer.Add(self.searchTranslationField, 1, wx.EXPAND)
         
         # grid
         self.grid = CustomGrid(self)
         self.grid.CreateGrid(0, 3)
-        self.grid.SetDefaultRenderer(CutomGridCellRenderer(self.store))
+        #self.grid.RegisterDataType("list", CutomGridCellRenderer(self.store), CustomGridCellEditor(self.store))
+        #self.grid.SetDefaultRenderer(CutomGridCellRenderer(self.store))
         self.grid.SetColLabelValue(0, "Stroke")
         self.grid.SetColSize(0, 300)
         self.grid.SetColLabelValue(1, "Translation")
         self.grid.SetColSize(1, 300)
         self.grid.SetColLabelValue(2, "Dictionaries")
         self.grid.SetColSize(2, 300)
-        self.grid.SetDefaultEditor(CustomGridCellEditor(self.store))
+        #self.grid.SetColFormatCustom(2, "list")
+        #self.grid.SetDefaultEditor(CustomGridCellEditor(self.store))
         #self.gridDictionaryEditor = CustomGridCellEditor(self.store)
         self.grid.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
+        
+        attr = wxGridCellAttr()
+        attr.SetEditor(CustomGridCellEditor(self.store))
+        attr.SetRenderer(CutomGridCellRenderer(self.store))
+        self.grid.SetColAttr(2, attr)
+        
+        self.store.subscribe("insert", self._onInsertRow)
+        self.store.subscribe("delete", self._onDeleteRow)
+        self.store.subscribe("update", self._onUpdateRow)
         
         # main Layout
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -103,72 +117,68 @@ class Frame(wx.Frame):
             dlg.Destroy()
             self.progress = wx.ProgressDialog("Loading", "Loading dictionary")
             self.grid.BeginBatch()
-            self.store.loadDictionary(os.path.join(dirname, filename), self._onGridChange)
+            self.store.subscribe("progress", self._onProgressChange)
+            self.store.loadDictionary(os.path.join(dirname, filename))
+            self.store.unsubscribe("progress", self._onProgressChange)
             self.grid.EndBatch()
             self.progress.Destroy()
         else:
             dlg.Destroy()
     
-    def _onGridChange(self, index, identifier, item, percent):
+    def _onProgressChange(self, percent):
         """ To track dictionary loading progress """
         
         if percent != None:
             self.progress.Update(percent)
-        if index == self.store.count-1:
-            self.grid.AppendRows(1)
-            self.grid.SetCellValue(index, 0, item["stroke"])
-            self.grid.SetCellValue(index, 1, item["translation"])
-            #self.grid.SetCellEditor(index, 2, self.gridDictionaryEditor)
+            
+    def _onInsertRow(self, item, index):
+        self.grid.InsertRows(index, 1)
+        self.grid.SetCellValue(index, 0, item["stroke"])
+        self.grid.SetCellValue(index, 1, item["translation"])
+        #self.grid.SetCellEditor(index, 2, self.gridDictionaryEditor)
+        #self.grid.GetTable().setValueAsCustom(item["index"], 2, "list", item["dictionaries"])
         self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item["dictionaries"]))
     
+    def _onDeleteRow(self, item, index):
+        self.grid.DeleteRows(index, 1)
+        
+    def _onUpdateRow(self, item, index):
+        self.grid.SetCellValue(index, 0, item["stroke"])
+        self.grid.SetCellValue(index, 1, item["translation"])
+        self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item["dictionaries"]))
+        
     def _onCellChange(self, evt):
         """ Handle Grid Cell change """
-        
-        print(str(evt))
+        print("on edit")
+        if self._cellChanging:
+            return
         row = evt.Row
-        value = self.grid.GetCellValue(evt.Row, evt.Col)
+        self._cellChanging = True
+        value = self.grid.GetCellValue(row, evt.Col)
         if evt.Col == 0:
             self.store.changeStroke(row, value)
         elif evt.Col == 1:
             self.store.changeTranslation(row, value)
         else:
             self.store.changeDictionaries(row, value)
+        self._cellChanging = False
     
-    def _onStrokeSearch(self, evt):
-        """ Stroke Search Button click """
+    def _onFilterChange(self, evt):
+        """ KeyUp event on search fields """
+        filters = []
+        if self.searchStrokeField.GetValue() != "":
+            filters.append({"pattern": self.searchStrokeField.GetValue(), "column": "stroke"})
+        if self.searchTranslationField.GetValue() != "":
+            filters.append({"pattern": self.searchTranslationField.GetValue(), "column": "translation"})
         
-        self._findRow("stroke", self.searchField.GetValue())
-    
-    def _onTranslationSearch(self, evt):
-        """ TRanslation Search Button click """
+        self.progress = wx.ProgressDialog("Progress", "Filtering...")
+        self.grid.BeginBatch()
+        self.store.subscribe("progress", self._onProgressChange)
+        self.store.filter(filters)
+        self.store.unsubscribe("progress", self._onProgressChange)
+        self.grid.EndBatch()
+        self.progress.Destroy()
         
-        self._findRow("translation", self.searchField.GetValue())
-    
-    def _findRow(self, column, pattern):
-        """ Find next matching row """
-        
-        selected = self.grid.GetSelectedRows()
-        if len(selected) > 0:
-            start = selected[0]+1
-        else:
-            start = 0
-        self._findRowFrom(column, pattern, start)
-    
-    def _findRowFrom(self, column, pattern, start):
-        """ Find next matching row from start index """
-        
-        index = self.store.findItem(column, pattern, start)
-        if index > -1:
-            self.grid.MakeCellVisible(index, 0)
-            self.grid.SelectRow(index, False)
-        elif start != 0:
-            dlg = wx.MessageDialog(self, "Not found. Do you want to start it from the beginning?", style=wxYES_NO | wxCENTER)
-            if dlg.ShowModal() == wx.ID_YES:
-                self._findRowFrom(column, pattern, 0)
-        else:
-            dlg = wx.MessageDialog(self, "Not found.", style=wxOK | wxCENTER)
-            dlg.ShowModal()
-    
     def _save(self, event=None):
         """ Save dictionaries """
         

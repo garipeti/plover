@@ -41,8 +41,6 @@ class CustomGridCellEditor(wxPyGridCellEditor):
         value = grid.GetTable().GetValue(row, col)
         if len(value) > 0:
             self.startValue = self.store.indexStringToIndexList(value)
-        print(self.items)
-        print(self.startValue)
         self._tc.SetChecked(self.startValue)
         self._tc.SetFocus()
 
