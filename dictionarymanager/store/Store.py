@@ -109,9 +109,10 @@ class Store():
         oldFilters = self.filters
         self.filters = newFilters
         
-        progress = Progress(len(self.rows) + len(self.filteredRows), self.fireEvent)
+        #progress = Progress(len(self.rows) + len(self.filteredRows), self.fireEvent)
         
         # apply new filter
+        filtered = self.filteredRows[:]
         for index in range(len(self.rows)-1, -1, -1):
             item = self.rows[index]
             did = self.filterFn(item, oldFilters)
@@ -119,16 +120,16 @@ class Store():
             if not does and did:
                 self.hideItem(item, index)
             
-            progress.next()
-                
-        for index in range(len(self.filteredRows)-1, -1, -1):
-            item = self.filteredRows[index]
+            #progress.next()
+            
+        for index in range(len(filtered)-1, -1, -1):
+            item = filtered[index]
             did = self.filterFn(item, oldFilters)
             does = self.filterFn(item, self.filters)
             if does and not did:
                 self.showItem(item, index)
             
-            progress.next()
+            #progress.next()
         
     def loadDictionary(self, filename):
         """ Load dictionary from file """

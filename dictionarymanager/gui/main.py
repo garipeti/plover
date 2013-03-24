@@ -11,6 +11,9 @@ from dictionarymanager.gui.widget.CustomGridCellRenderer import \
     CutomGridCellRenderer
 from dictionarymanager.store import Store
 from threading import Timer
+from wx._core import CURSOR_WAIT
+from wx._gdi import StockCursor, NullCursor
+from wx._misc import BeginBusyCursor, EndBusyCursor
 from wx.grid import EVT_GRID_CELL_CHANGE, EVT_GRID_LABEL_LEFT_CLICK
 from wxPython.grid import wxGridCellAttr
 import os
@@ -78,9 +81,9 @@ class Frame(wx.Frame):
         
         # search fields layout
         searchSizer = wx.BoxSizer(wx.HORIZONTAL)
-        searchSizer.Add(wx.StaticText(self, label="Enter a stroke"), 0, wx.EXPAND)
+        searchSizer.Add(wx.StaticText(self, label="Filter by stroke:"), 0, wx.ALL, 5)
         searchSizer.Add(self.searchStrokeField, 1, wx.EXPAND)
-        searchSizer.Add(wx.StaticText(self, label="Enter a translation"), 0, wx.EXPAND)
+        searchSizer.Add(wx.StaticText(self, label="Filter by translation:"), 0, wx.ALL, 5)
         searchSizer.Add(self.searchTranslationField, 1, wx.EXPAND)
         
         # grid
@@ -120,8 +123,10 @@ class Frame(wx.Frame):
             dlg.Destroy()
             
             self._startGridJob("Loading", "Loading dictionary")
-            self.store.loadDictionary(os.path.join(dirname, filename))
-            self._endGridJob()
+            try:
+                self.store.loadDictionary(os.path.join(dirname, filename))
+            finally:
+                self._endGridJob()
         else:
             dlg.Destroy()
     
@@ -171,8 +176,10 @@ class Frame(wx.Frame):
             self._changeGridLabel()
             
             self._startGridJob("Progress", "Sorting...")
-            self.store.sort(propertyName, self._sortingAsc)
-            self._endGridJob()
+            try:
+                self.store.sort(propertyName, self._sortingAsc)
+            finally:
+                self._endGridJob()
     
     def _changeGridLabel(self):
         directionLabel = " (asc)" if self._sortingAsc else " (desc)"
@@ -204,12 +211,14 @@ class Frame(wx.Frame):
         if self.searchTranslationField.GetValue() != "":
             filters.append({"pattern": self.searchTranslationField.GetValue(), "column": "translation"})
         
-        self._startGridJob("Progress", "Filtering...")
-        self.store.filter(filters)
-        self._endGridJob()
+        BeginBusyCursor()
+        try:
+            self.store.filter(filters)
+        finally:
+            EndBusyCursor()
         
     def _startGridJob(self, title, text):
-        #self._controlInFocus = self.FindFocus()
+        BeginBusyCursor()
         self.progress = wx.ProgressDialog(title, text)
         self.grid.BeginBatch()
         self.store.subscribe("progress", self._onProgressChange)
@@ -218,9 +227,7 @@ class Frame(wx.Frame):
         self.store.unsubscribe("progress", self._onProgressChange)
         self.grid.EndBatch()
         self.progress.Destroy()
-        #if self._controlInFocus != None:
-        #    self._controlInFocus.SetFocus()
-        
+        EndBusyCursor()
         
     def _save(self, event=None):
         """ Save dictionaries """
