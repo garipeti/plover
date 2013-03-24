@@ -10,7 +10,8 @@ from dictionarymanager.gui.widget.CustomGridCellEditor import \
 from dictionarymanager.gui.widget.CustomGridCellRenderer import \
     CutomGridCellRenderer
 from dictionarymanager.store import Store
-from wx.grid import EVT_GRID_CELL_CHANGE
+from threading import Timer
+from wx.grid import EVT_GRID_CELL_CHANGE, EVT_GRID_LABEL_LEFT_CLICK
 from wxPython.grid import wxGridCellAttr
 import os
 import wx
@@ -33,6 +34,10 @@ class Frame(wx.Frame):
     """ Main Frame """
     
     TITLE = "Dictionary Manager"
+    GRID_LABEL_STROKE = "Stroke"
+    GRID_LABEL_TRANSLATION = "Translation"
+    GRID_LABEL_DICTIONARIES = "Dictionaries"
+    GRID_LABELS = [GRID_LABEL_STROKE, GRID_LABEL_TRANSLATION, GRID_LABEL_DICTIONARIES]
     
     def __init__(self):
         
@@ -47,6 +52,10 @@ class Frame(wx.Frame):
         
         # auxiliary variables
         self._cellChanging = False
+        self._sortingColumn = 0
+        self._sortingAsc = True
+        self._keyTimer = None
+        #self._controlInFocus = None
         
         # menu
         menubar = wx.MenuBar()
@@ -64,8 +73,8 @@ class Frame(wx.Frame):
         self.searchStrokeField = wx.TextCtrl(self, wx.ID_ANY, value="")
         self.searchTranslationField = wx.TextCtrl(self, wx.ID_ANY, value="")
         
-        self.searchStrokeField.Bind(wx.EVT_KEY_UP, self._onFilterChange)
-        self.searchTranslationField.Bind(wx.EVT_KEY_UP, self._onFilterChange)
+        self.searchStrokeField.Bind(wx.EVT_KEY_UP, self._onFilterKeyUp)
+        self.searchTranslationField.Bind(wx.EVT_KEY_UP, self._onFilterKeyUp)
         
         # search fields layout
         searchSizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -77,18 +86,12 @@ class Frame(wx.Frame):
         # grid
         self.grid = CustomGrid(self)
         self.grid.CreateGrid(0, 3)
-        #self.grid.RegisterDataType("list", CutomGridCellRenderer(self.store), CustomGridCellEditor(self.store))
-        #self.grid.SetDefaultRenderer(CutomGridCellRenderer(self.store))
-        self.grid.SetColLabelValue(0, "Stroke")
         self.grid.SetColSize(0, 300)
-        self.grid.SetColLabelValue(1, "Translation")
         self.grid.SetColSize(1, 300)
-        self.grid.SetColLabelValue(2, "Dictionaries")
         self.grid.SetColSize(2, 300)
-        #self.grid.SetColFormatCustom(2, "list")
-        #self.grid.SetDefaultEditor(CustomGridCellEditor(self.store))
-        #self.gridDictionaryEditor = CustomGridCellEditor(self.store)
+        self._changeGridLabel()
         self.grid.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
+        self.grid.Bind(EVT_GRID_LABEL_LEFT_CLICK, self._onLabelClick)
         
         attr = wxGridCellAttr()
         attr.SetEditor(CustomGridCellEditor(self.store))
@@ -115,13 +118,10 @@ class Frame(wx.Frame):
             filename = dlg.GetFilename()
             dirname = dlg.GetDirectory()
             dlg.Destroy()
-            self.progress = wx.ProgressDialog("Loading", "Loading dictionary")
-            self.grid.BeginBatch()
-            self.store.subscribe("progress", self._onProgressChange)
+            
+            self._startGridJob("Loading", "Loading dictionary")
             self.store.loadDictionary(os.path.join(dirname, filename))
-            self.store.unsubscribe("progress", self._onProgressChange)
-            self.grid.EndBatch()
-            self.progress.Destroy()
+            self._endGridJob()
         else:
             dlg.Destroy()
     
@@ -135,8 +135,6 @@ class Frame(wx.Frame):
         self.grid.InsertRows(index, 1)
         self.grid.SetCellValue(index, 0, item["stroke"])
         self.grid.SetCellValue(index, 1, item["translation"])
-        #self.grid.SetCellEditor(index, 2, self.gridDictionaryEditor)
-        #self.grid.GetTable().setValueAsCustom(item["index"], 2, "list", item["dictionaries"])
         self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item["dictionaries"]))
     
     def _onDeleteRow(self, item, index):
@@ -149,7 +147,7 @@ class Frame(wx.Frame):
         
     def _onCellChange(self, evt):
         """ Handle Grid Cell change """
-        print("on edit")
+    
         if self._cellChanging:
             return
         row = evt.Row
@@ -163,21 +161,66 @@ class Frame(wx.Frame):
             self.store.changeDictionaries(row, value)
         self._cellChanging = False
     
-    def _onFilterChange(self, evt):
+    def _onLabelClick(self, evt):
+        """ Handle Grid label click"""
+        
+        if evt.Row == -1:
+            propertyName = "stroke" if evt.Col == 0 else "translation" if evt.Col == 1 else "dictionaries"
+            self._sortingAsc = (not self._sortingAsc) if evt.Col == self._sortingColumn else True
+            self._sortingColumn = evt.Col
+            self._changeGridLabel()
+            
+            self._startGridJob("Progress", "Sorting...")
+            self.store.sort(propertyName, self._sortingAsc)
+            self._endGridJob()
+    
+    def _changeGridLabel(self):
+        directionLabel = " (asc)" if self._sortingAsc else " (desc)"
+        for i in range(3):
+            self.grid.SetColLabelValue(i, self.GRID_LABELS[i] + (directionLabel if self._sortingColumn == i else ""))
+        
+    def _onFilterKeyUp(self, evt):
         """ KeyUp event on search fields """
+        
+        if self._keyTimer != None:
+            self._keyTimer.cancel()
+        
+        self._keyTimer = Timer(0.5, self._callFilterChange)
+        self._keyTimer.start()
+    
+    def _callFilterChange(self):
+        wx.CallAfter(self._onFilterChange)
+    
+    def _onFilterChange(self):
+        """ KeyUp event on search fields """
+        
+        if self._keyTimer != None:
+            self._keyTimer.cancel()
+            self._keyTimer = None
+            
         filters = []
         if self.searchStrokeField.GetValue() != "":
             filters.append({"pattern": self.searchStrokeField.GetValue(), "column": "stroke"})
         if self.searchTranslationField.GetValue() != "":
             filters.append({"pattern": self.searchTranslationField.GetValue(), "column": "translation"})
         
-        self.progress = wx.ProgressDialog("Progress", "Filtering...")
+        self._startGridJob("Progress", "Filtering...")
+        self.store.filter(filters)
+        self._endGridJob()
+        
+    def _startGridJob(self, title, text):
+        #self._controlInFocus = self.FindFocus()
+        self.progress = wx.ProgressDialog(title, text)
         self.grid.BeginBatch()
         self.store.subscribe("progress", self._onProgressChange)
-        self.store.filter(filters)
+        
+    def _endGridJob(self):
         self.store.unsubscribe("progress", self._onProgressChange)
         self.grid.EndBatch()
         self.progress.Destroy()
+        #if self._controlInFocus != None:
+        #    self._controlInFocus.SetFocus()
+        
         
     def _save(self, event=None):
         """ Save dictionaries """
