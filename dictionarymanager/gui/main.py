@@ -11,8 +11,6 @@ from dictionarymanager.gui.widget.CustomGridCellRenderer import \
     CutomGridCellRenderer
 from dictionarymanager.store import Store
 from threading import Timer
-from wx._core import CURSOR_WAIT
-from wx._gdi import StockCursor, NullCursor
 from wx._misc import BeginBusyCursor, EndBusyCursor
 from wx.grid import EVT_GRID_CELL_CHANGE, EVT_GRID_LABEL_LEFT_CLICK
 from wxPython.grid import wxGridCellAttr
@@ -72,6 +70,10 @@ class Frame(wx.Frame):
         self.Bind(wx.EVT_MENU, self._save, saveMenuItem)
         self.Bind(wx.EVT_MENU, self._quit, quitMenuItem)
 
+        # add new stroke button
+        self.addRowButton = wx.Button(self, wx.ID_ANY, label="Add")
+        self.Bind(wx.EVT_BUTTON, self._addRow, self.addRowButton)
+        
         # search fields
         self.searchStrokeField = wx.TextCtrl(self, wx.ID_ANY, value="")
         self.searchTranslationField = wx.TextCtrl(self, wx.ID_ANY, value="")
@@ -85,6 +87,7 @@ class Frame(wx.Frame):
         searchSizer.Add(self.searchStrokeField, 1, wx.EXPAND)
         searchSizer.Add(wx.StaticText(self, label="Filter by translation:"), 0, wx.ALL, 5)
         searchSizer.Add(self.searchTranslationField, 1, wx.EXPAND)
+        searchSizer.Add(self.addRowButton, 0, wx.EXPAND)
         
         # grid
         self.grid = CustomGrid(self)
@@ -138,17 +141,17 @@ class Frame(wx.Frame):
             
     def _onInsertRow(self, item, index):
         self.grid.InsertRows(index, 1)
-        self.grid.SetCellValue(index, 0, item["stroke"])
-        self.grid.SetCellValue(index, 1, item["translation"])
-        self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item["dictionaries"]))
+        self.grid.SetCellValue(index, 0, item[Store.Store.ATTR_STROKE])
+        self.grid.SetCellValue(index, 1, item[Store.Store.ATTR_TRANSLATION])
+        self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item[Store.Store.ATTR_DICTIONARIES]))
     
     def _onDeleteRow(self, item, index):
         self.grid.DeleteRows(index, 1)
         
     def _onUpdateRow(self, item, index):
-        self.grid.SetCellValue(index, 0, item["stroke"])
-        self.grid.SetCellValue(index, 1, item["translation"])
-        self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item["dictionaries"]))
+        self.grid.SetCellValue(index, 0, item[Store.Store.ATTR_STROKE])
+        self.grid.SetCellValue(index, 1, item[Store.Store.ATTR_TRANSLATION])
+        self.grid.SetCellValue(index, 2, self.store.dictionaryFilenameListToIndexString(item[Store.Store.ATTR_DICTIONARIES]))
         
     def _onCellChange(self, evt):
         """ Handle Grid Cell change """
@@ -159,23 +162,26 @@ class Frame(wx.Frame):
         self._cellChanging = True
         value = self.grid.GetCellValue(row, evt.Col)
         if evt.Col == 0:
-            self.store.changeStroke(row, value)
+            row = self.store.changeStroke(row, value)
         elif evt.Col == 1:
-            self.store.changeTranslation(row, value)
+            row = self.store.changeTranslation(row, value)
         else:
-            self.store.changeDictionaries(row, value)
+            row = self.store.changeDictionaries(row, value)
         self._cellChanging = False
+        if row != None:
+            self.grid.MakeCellVisible(row, evt.Col)
     
     def _onLabelClick(self, evt):
         """ Handle Grid label click"""
         
         if evt.Row == -1:
-            propertyName = "stroke" if evt.Col == 0 else "translation" if evt.Col == 1 else "dictionaries"
+            propertyName = Store.Store.ATTR_STROKE if evt.Col == 0 else Store.Store.ATTR_TRANSLATION if evt.Col == 1 else Store.Store.ATTR_DICTIONARIES
             self._sortingAsc = (not self._sortingAsc) if evt.Col == self._sortingColumn else True
             self._sortingColumn = evt.Col
             self._changeGridLabel()
             
             self._startGridJob("Progress", "Sorting...")
+            self.grid.MakeCellVisible(0, 0)
             try:
                 self.store.sort(propertyName, self._sortingAsc)
             finally:
@@ -205,13 +211,13 @@ class Frame(wx.Frame):
             self._keyTimer.cancel()
             self._keyTimer = None
             
-        filters = []
-        if self.searchStrokeField.GetValue() != "":
-            filters.append({"pattern": self.searchStrokeField.GetValue(), "column": "stroke"})
-        if self.searchTranslationField.GetValue() != "":
-            filters.append({"pattern": self.searchTranslationField.GetValue(), "column": "translation"})
+        filters = [
+                   {"pattern": self.searchStrokeField.GetValue(), "column": Store.Store.ATTR_STROKE},
+                   {"pattern": self.searchTranslationField.GetValue(), "column": Store.Store.ATTR_TRANSLATION}
+                ]
         
         BeginBusyCursor()
+        self.grid.MakeCellVisible(0, 0)
         try:
             self.store.filter(filters)
         finally:
@@ -229,6 +235,11 @@ class Frame(wx.Frame):
         self.progress.Destroy()
         EndBusyCursor()
         
+    def _addRow(self, event=None):
+        """ Save dictionaries """
+        row = self.store.insertItem()
+        self.grid.MakeCellVisible(row, 0)
+    
     def _save(self, event=None):
         """ Save dictionaries """
         

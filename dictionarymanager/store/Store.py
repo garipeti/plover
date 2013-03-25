@@ -9,6 +9,10 @@ import os
 
 class Store():
     
+    ATTR_STROKE = "stroke"
+    ATTR_TRANSLATION = "translation"
+    ATTR_DICTIONARIES = "dictionaries"
+    
     def __init__(self):
         self.loaders = {
                         "json": JsonLoader.JsonLoader()
@@ -25,7 +29,7 @@ class Store():
         self.filters = []
 
         #sorting
-        self.cmpFn = lambda a, b: 0 if a["stroke"] == b["stroke"] else 1 if a["stroke"] > b["stroke"] else -1
+        self.cmpFn = lambda a, b: 0 if a[self.ATTR_STROKE] == b[self.ATTR_STROKE] else 1 if a[self.ATTR_STROKE] > b[self.ATTR_STROKE] else -1
         
         # subscribers
         self.subscribers = {"insert": [], "delete": [], "update": [], "progress": []}
@@ -52,13 +56,11 @@ class Store():
         self._sort()
     
     def _sort(self):
-        index = 0
         progress = Progress(len(self.rows)*2, self.fireEvent)
         for row in self.rows:
             progress.next()
             if self.filterFn(row):
-                self.fireEvent("delete", row, index)
-                index += 1
+                self.fireEvent("delete", row, 0)
         self.rows.sort(cmp=self.cmpFn)
         index = 0
         for row in self.rows:
@@ -80,10 +82,20 @@ class Store():
         pos = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
         self.rows.insert(pos, self.filteredRows.pop(currentIndex))
         self.fireEvent("insert", item, pos)
+        return pos
+    
+    def _insertItem(self, item):
+        index = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
+        self.strokes[self.getIdentifier(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])] = item
+        self.rows.insert(index, item)
+        self.fireEvent("insert", item, index)
+        return index
         
     def repositionItem(self, item):
         self.hideItem(item)
-        self.showItem(item)
+        if self.filterFn(item):
+            return self.showItem(item)
+        return None
     
     def findPlaceForNewItem(self, item, start, end):
         if start > end:
@@ -145,7 +157,7 @@ class Store():
                 # precache indexes for identifiers
                 indexes = {}
                 for index, row in enumerate(self.rows):
-                    indexes[self.getIdentifier(row["stroke"], row["translation"])] = index
+                    indexes[self.getIdentifier(row[self.ATTR_STROKE], row[self.ATTR_TRANSLATION])] = index
                 
                 newItems = []
                 progress = Progress(len(dictionary), self.fireEvent)
@@ -153,12 +165,12 @@ class Store():
                     identifier = self.getIdentifier(stroke, translation)
                     isNew = identifier not in self.strokes
                     if isNew:
-                        item = {"stroke": stroke, "translation": translation, "dictionaries": []}
+                        item = {self.ATTR_STROKE: stroke, self.ATTR_TRANSLATION: translation, self.ATTR_DICTIONARIES: []}
                         self.strokes[identifier] = item
                     else:
                         item = self.strokes[identifier]
                         
-                    item["dictionaries"].append(filename)
+                    item[self.ATTR_DICTIONARIES].append(filename)
                     
                     # we don't handle the situation when this is an update 
                     # and the row is filtered out with its new value
@@ -173,9 +185,7 @@ class Store():
                             self.filteredRows.append(item)
                     
                 for item in newItems:
-                    index = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
-                    self.rows.insert(index, item)
-                    self.fireEvent("insert", item, index)
+                    self._insertItem(item)
                     progress.next()
 
     def saveDictionaries(self):
@@ -185,8 +195,8 @@ class Store():
         for filename in self.dictionaries.iterkeys():
             files[filename] = {}
         for item in self.strokes.itervalues():
-            for filename in item["dictionaries"]:
-                files[filename][item["stroke"]] = item["translation"]
+            for filename in item[self.ATTR_DICTIONARIES]:
+                files[filename][item[self.ATTR_STROKE]] = item[self.ATTR_TRANSLATION]
         for filename, dictionary in files.iteritems():
             loader = self.getLoader(filename)
             if loader != None:
@@ -221,22 +231,27 @@ class Store():
         """ Change Stroke in item """
         
         item = self.rows[row]
-        item["stroke"] = stroke
-        self.repositionItem(item)
+        item[self.ATTR_STROKE] = stroke
+        return self.repositionItem(item)
         
     def changeTranslation(self, row, translation):
         """ Change Translation in item """
         
         item = self.rows[row]
-        item["translation"] = translation
-        self.repositionItem(item)
+        item[self.ATTR_TRANSLATION] = translation
+        return self.repositionItem(item)
         
     def changeDictionaries(self, row, dictionaries):
         """ Change dictionary list for the item """
         
         item = self.rows[row]
-        item["dictionaries"] = self.indexStringToDictionaryList(dictionaries)
-        self.repositionItem(item)
+        item[self.ATTR_DICTIONARIES] = self.indexStringToDictionaryList(dictionaries)
+        return self.repositionItem(item)
+    
+    def insertItem(self, item = None):
+        if item == None:
+            item = {self.ATTR_STROKE: "", self.ATTR_TRANSLATION: "", self.ATTR_DICTIONARIES: []}
+        return self._insertItem(item)
     
     def getDictionaryNames(self):
         return self.dictionaryNames
