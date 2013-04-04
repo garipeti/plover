@@ -2,10 +2,9 @@ from wxPython._controls import wxCheckListBox
 from wxPython._core import wxSIZE_ALLOW_MINUS_ONE, WXK_SHIFT, wxLB_MULTIPLE
 from wxPython.grid import wxPyGridCellEditor
 
-class CustomGridCellEditor(wxPyGridCellEditor):
-    def __init__(self, store):
+class dmGridCellEditor(wxPyGridCellEditor):
+    def __init__(self):
         wxPyGridCellEditor.__init__(self)
-        self.store = store
 
     def Create(self, parent, id, evtHandler):
         """
@@ -16,9 +15,6 @@ class CustomGridCellEditor(wxPyGridCellEditor):
         if evtHandler:
             self._tc.PushEventHandler(evtHandler)
     
-    def GetItems(self):
-        return self.store.getDictionaryNames()
-        
     def SetSize(self, rect):
         """
         Called to position/size the edit control within the cell rectangle.
@@ -36,11 +32,10 @@ class CustomGridCellEditor(wxPyGridCellEditor):
         Fetch the value from the table and prepare the edit control
         to begin editing.  Set the focus to the edit control.
         """
-        self.items = self.GetItems()
+        
+        self.items = grid.store.getDictionaryNames()
         self._tc.Set(self.items)
-        value = grid.GetTable().GetValue(row, col)
-        if len(value) > 0:
-            self.startValue = self.store.indexStringToIndexList(value)
+        self.startValue = grid.store.getDictionaryIndexesForRow(row)
         self._tc.SetChecked(self.startValue)
         self._tc.SetFocus()
 
@@ -58,8 +53,9 @@ class CustomGridCellEditor(wxPyGridCellEditor):
                     changed = True
             
         if changed:
-            grid.GetTable().SetValue(row, col, self.store.indexListToIndexString(selections)) # update the table
-
+            grid.store.setDictionariesForRow(row, selections)
+            grid.GetTable().SetValue(row, col, grid.store.renderDictionariesForRow(row)) # update the table
+        
         self.startValue = []
         self._tc.SetChecked(self.startValue)
         return changed
@@ -123,4 +119,4 @@ class CustomGridCellEditor(wxPyGridCellEditor):
         """
         Create a new object which is the copy of this one
         """
-        return CustomGridCellEditor(self.store)
+        return dmGridCellEditor(self.store)

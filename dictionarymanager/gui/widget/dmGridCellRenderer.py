@@ -2,16 +2,15 @@
 from wx.grid import PyGridCellRenderer
 import wx
 
-class CutomGridCellRenderer(PyGridCellRenderer):   
-    def __init__(self, store): 
+class dmGridCellRenderer(PyGridCellRenderer):   
+    def __init__(self): 
         PyGridCellRenderer.__init__(self)
-        self.store = store
-
+    
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
-        #text = ", ".join( grid.GetTable().getValueAsCustom(row, col, "list"))
-        text = grid.GetCellValue(row, col)
-        if text[:7] == "__dic__":
-            text = self.store.indexStringToDictionaryFilenameString(text)
+        if col == 3:
+            text = ", ".join(grid.store.getDictionaryShortNamesForRow(row))
+        else:
+            text = grid.GetCellValue(row, col)
         dc.SetFont( attr.GetFont() ) 
         hAlign, vAlign = attr.GetAlignment()       
         if isSelected: 
@@ -27,11 +26,11 @@ class CutomGridCellRenderer(PyGridCellRenderer):
         dc.DrawRectangleRect(rect)            
         grid.DrawTextRectangle(dc, text, rect, hAlign, vAlign)
 
-    def GetBestSize(self, grid, attr, dc, row, col): 
-        text = self.valueToString(grid.GetCellValue(row, col))
-        dc.SetFont(attr.GetFont())
-        w, h = dc.GetTextExtent(text)                   
-        return wx.Size(w, h)        
+    #def GetBestSize(self, grid, attr, dc, row, col): 
+    #    text = self.valueToString(grid.GetCellValue(row, col))
+    #    dc.SetFont(attr.GetFont())
+    #    w, h = dc.GetTextExtent(text)                   
+    #    return wx.Size(w, h)        
 
     def Clone(self): 
-        return CutomGridCellRenderer()
+        return dmGridCellRenderer()

@@ -245,7 +245,7 @@ class Store():
         """ Change dictionary list for the item """
         
         item = self.rows[row]
-        item[self.ATTR_DICTIONARIES] = self.indexStringToDictionaryList(dictionaries)
+        item[self.ATTR_DICTIONARIES] = dictionaries
         return self.repositionItem(item)
     
     def insertItem(self, item = None):
@@ -259,42 +259,34 @@ class Store():
     def getDictionaryShortName(self, path):
         return path.split("/")[-1]
         
-    def dictionaryFilenameListToIndexString(self, filenames):
-        return self.indexListToIndexString(map(self.getDictionaryIndexByName, filenames))
-        
-    def indexStringToDictionaryFilenameString(self, indexes):
-        return ", ".join(map(self.getDictionaryShortNameByIndex, self.indexStringToIndexList(indexes)))
-        
-    def indexStringToDictionaryList(self, indexes):
-        return map(self.getDictionaryNameByIndex, self.indexStringToIndexList(indexes))
-        
-    def indexStringToIndexList(self, indexes):
-        if len(indexes) > 7:
-            return map(int, indexes[7:].split(","))
-        return []
-        
-    def indexListToIndexString(self, indexes):
-        return "__dic__" + (",".join(map(str, indexes)))
+    def getDictionariesForRow(self, row):
+        return self.rows[row][self.ATTR_DICTIONARIES]
     
-    def getDictionaryShortNameByIndex(self, index):
-        if index < len(self.dictionaryNames):
-            return self.dictionaryNames[index]
-        return ""
+    def getDictionaryShortNamesForRow(self, row):
+        return map(self.getDictionaryShortName, self.rows[row][self.ATTR_DICTIONARIES])
+    
+    def renderDictionaries(self, item):
+        return ", ".join(map(self.getDictionaryShortName, item[self.ATTR_DICTIONARIES]))
+    
+    def renderDictionariesForRow(self, row):
+        return self.renderDictionaries(self.rows[row])
+    
+    def getDictionaryIndexesForRow(self, row):
+        return map(self.getDictionaryIndexByName, self.rows[row][self.ATTR_DICTIONARIES])
+    
+    def setDictionariesForRow(self, row, indexes):
+        self.rows[row][self.ATTR_DICTIONARIES] = map(self.getDictionaryNameByIndex, indexes)
+    
+    def getDictionaryIndexByName(self, name):
+        if name in self.dictionaryFilenames:
+            return self.dictionaryFilenames.index(name)
+        return None
     
     def getDictionaryNameByIndex(self, index):
         if index < len(self.dictionaryFilenames):
             return self.dictionaryFilenames[index]
         return None
     
-    def getDictionaryIndexByName(self, name):
-        if name in self.dictionaryFilenames:
-            return str(self.dictionaryFilenames.index(name))
-        return None
-    
-    def getDictionaryIndexByShortName(self, name):
-        if self.getDictionaryShortName(name) in self.dictionaryNames:
-            return self.dictionaryNames.index(name)
-        return None
     
 class Progress():
     def __init__(self, length, fireEvent):
