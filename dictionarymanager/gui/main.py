@@ -9,6 +9,7 @@ from dictionarymanager.store import Store
 from threading import Timer
 from wx._misc import BeginBusyCursor, EndBusyCursor
 import os
+import plover.config as conf
 import wx
 
 class DictionaryManagerGUI(wx.App):
@@ -19,24 +20,27 @@ class DictionaryManagerGUI(wx.App):
     
     def OnInit(self):
         """Called just before the application starts."""
-        frame = Frame()
+        frame = dmFrame()
         frame.SetSize((600, 400))
         frame.Show()
         self.SetTopWindow(frame)
         return True
 
-class Frame(wx.Frame):
-    """ Main Frame """
+class dmFrame(wx.Frame):
+    """ Main dmFrame """
     
     TITLE = "Dictionary Manager"
     
     def __init__(self):
         
         wx.Frame.__init__(self, None,
-                          title=Frame.TITLE,
+                          title=dmFrame.TITLE,
                           pos=wx.DefaultPosition,
                           size=wx.DefaultSize,
                           style=wx.DEFAULT_FRAME_STYLE|wx.TAB_TRAVERSAL)
+        
+        # configuration
+        self.config = conf.get_config()
         
         # dictionary store
         self.store = Store.Store()
@@ -89,6 +93,11 @@ class Frame(wx.Frame):
         self.SetSizerAndFit(sizer)
         
         self.Bind(wx.EVT_CLOSE, self._quit)
+        
+        # load dictionaries from config
+        dict_files = self.config.get(conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        for dict_file in filter(None, [x.strip() for x in dict_files.splitlines()]):
+            self._readDictionary(os.path.join(conf.CONFIG_DIR, dict_file))
     
     def _open(self, event=None):
         """ Open up File Dialog to load dictionary """
@@ -99,13 +108,16 @@ class Frame(wx.Frame):
             dirname = dlg.GetDirectory()
             dlg.Destroy()
             
-            self.grid._startGridJob("Loading", "Loading dictionary")
-            try:
-                self.store.loadDictionary(os.path.join(dirname, filename))
-            finally:
-                self.grid._endGridJob()
+            self._readDictionary(os.path.join(dirname, filename))
         else:
             dlg.Destroy()
+    
+    def _readDictionary(self, filename):
+        self.grid._startGridJob("Loading", "Loading dictionary " + self.store.getDictionaryShortName(filename))
+        try:
+            self.store.loadDictionary(filename)
+        finally:
+            self.grid._endGridJob()
     
     def _onFilterKeyUp(self, evt):
         """ KeyUp event on search fields """

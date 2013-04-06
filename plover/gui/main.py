@@ -23,6 +23,7 @@ from plover import __long_description__
 from plover import __url__
 from plover import __credits__
 from plover import __license__
+from dictionarymanager.gui import main as dictionarymanager
 
 class PloverGUI(wx.App):
     """The main entry point for the Plover application."""
@@ -50,6 +51,7 @@ class Frame(wx.Frame):
     STOPPED_MESSAGE = "stopped"
     ERROR_MESSAGE = "error"
     CONFIGURE_BUTTON_LABEL = "Configure..."
+    DICTIONARY_MANAGER_BUTTON_LABEL = "Dictionary Manager"
     ABOUT_BUTTON_LABEL = "About..."
     COMMAND_SUSPEND = 'SUSPEND'
     COMMAND_RESUME = 'RESUME'
@@ -57,6 +59,7 @@ class Frame(wx.Frame):
     COMMAND_CONFIGURE = 'CONFIGURE'
     COMMAND_FOCUS = 'FOCUS'
     COMMAND_QUIT = 'QUIT'
+    COMMAND_DICTIONARYMANAGER = "DICTIONARY"
 
     def __init__(self, config_file):
         wx.Frame.__init__(self, None,
@@ -94,6 +97,10 @@ class Frame(wx.Frame):
         self.configure_button = wx.Button(self, label=self.CONFIGURE_BUTTON_LABEL)
         self.configure_button.Bind(wx.EVT_BUTTON, self._show_config_dialog)
 
+        # Dictionary Manager button.
+        self.dictionary_manager_button = wx.Button(self, label=self.DICTIONARY_MANAGER_BUTTON_LABEL)
+        self.dictionary_manager_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
+
         # About button.
         self.about_button = wx.Button(self, label=self.ABOUT_BUTTON_LABEL)
         self.about_button.Bind(wx.EVT_BUTTON, self._show_about_dialog)
@@ -104,6 +111,9 @@ class Frame(wx.Frame):
                   flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.configure_button,
+                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
+                  border=self.BORDER)
+        sizer.Add(self.dictionary_manager_button,
                   flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.about_button,
@@ -133,6 +143,8 @@ class Frame(wx.Frame):
             wx.CallAfter(self.Iconize, False)
         elif command == self.COMMAND_QUIT:
             wx.CallAfter(self._quit)
+        elif command == self.COMMAND_DICTIONARYMANAGER:
+            wx.CallAfter(self._show_dictionary_manager)
 
     def _update_status(self):
         if self.steno_engine:
@@ -161,6 +173,12 @@ class Frame(wx.Frame):
         dialog = gui.ConfigurationDialog(conf.CONFIG_FILE)
         dialog.Show()
         return dialog
+
+    def _show_dictionary_manager(self, event=None):
+        frame = dictionarymanager.dmFrame()
+        frame.SetSize((600, 400))
+        frame.Show()
+        return frame
 
     def _show_about_dialog(self, event=None):
         """Called when the About... button is clicked."""
