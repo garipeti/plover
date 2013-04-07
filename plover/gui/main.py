@@ -51,7 +51,6 @@ class Frame(wx.Frame):
     STOPPED_MESSAGE = "stopped"
     ERROR_MESSAGE = "error"
     CONFIGURE_BUTTON_LABEL = "Configure..."
-    DICTIONARY_MANAGER_BUTTON_LABEL = "Dictionary Manager"
     ABOUT_BUTTON_LABEL = "About..."
     COMMAND_SUSPEND = 'SUSPEND'
     COMMAND_RESUME = 'RESUME'
@@ -97,10 +96,6 @@ class Frame(wx.Frame):
         self.configure_button = wx.Button(self, label=self.CONFIGURE_BUTTON_LABEL)
         self.configure_button.Bind(wx.EVT_BUTTON, self._show_config_dialog)
 
-        # Dictionary Manager button.
-        self.dictionary_manager_button = wx.Button(self, label=self.DICTIONARY_MANAGER_BUTTON_LABEL)
-        self.dictionary_manager_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
-
         # About button.
         self.about_button = wx.Button(self, label=self.ABOUT_BUTTON_LABEL)
         self.about_button.Bind(wx.EVT_BUTTON, self._show_about_dialog)
@@ -111,9 +106,6 @@ class Frame(wx.Frame):
                   flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.configure_button,
-                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
-                  border=self.BORDER)
-        sizer.Add(self.dictionary_manager_button,
                   flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.about_button,

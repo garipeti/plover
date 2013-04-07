@@ -91,6 +91,13 @@ class Store():
         self.fireEvent("insert", item, index)
         return index
         
+    def _removeItem(self, index):
+        item = self.rows[index]
+        self.strokes.pop(self.getIdentifier(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION]), None)
+        self.rows.pop(index)
+        self.fireEvent("delete", item, index)
+        return index
+        
     def repositionItem(self, item):
         self.hideItem(item)
         if self.filterFn(item):
@@ -201,6 +208,42 @@ class Store():
             loader = self.getLoader(filename)
             if loader != None:
                 loader.write(filename, dictionary)
+    
+    def saveDictionary(self, index):
+        """ Save dictionary to file """
+        
+        data = {}
+        filename = self.dictionaryFilenames[index]
+        for item in self.strokes.itervalues():
+            if filename in item[self.ATTR_DICTIONARIES]:
+                data[item[self.ATTR_STROKE]] = item[self.ATTR_TRANSLATION]
+        loader = self.getLoader(filename)
+        if loader != None:
+            loader.write(filename, data)
+    
+    def closeDictionary(self, index):
+        """ Close dictionary """
+        
+        filename = self.dictionaryFilenames[index]
+        for i in reversed(range(len(self.rows))):
+            row = self.rows[i]
+            if filename in row[self.ATTR_DICTIONARIES]:
+                row[self.ATTR_DICTIONARIES].remove(filename)
+                if len(row[self.ATTR_DICTIONARIES]) == 0:
+                    self._removeItem(i)
+                else:
+                    # TODO: maybe here we should reposition the row
+                    self.fireEvent("update", row, i)
+        for i in reversed(range(len(self.filteredRows))):
+            row = self.filteredRows[i]
+            if filename in row[self.ATTR_DICTIONARIES]:
+                row[self.ATTR_DICTIONARIES].remove(filename)
+                if len(row[self.ATTR_DICTIONARIES]) == 0:
+                    self.strokes.pop(self.getIdentifier(row[self.ATTR_STROKE], row[self.ATTR_TRANSLATION]), None)
+                    self.filteredRows.pop(i)
+        self.dictionaries.pop(filename, None)
+        self.dictionaryFilenames.remove(filename)
+        self.dictionaryNames.remove(self.getDictionaryShortName(filename))
     
     def getLoader(self, filename):
         """ Get the loader based on the file extension """

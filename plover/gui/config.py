@@ -10,6 +10,7 @@ import ConfigParser
 from serial import Serial
 import plover.machine as machine
 import plover.dictionary as dictionary
+from dictionarymanager.gui import main as dictionarymanager
 import plover.config as conf
 import plover.gui.serial_config as serial_config
 
@@ -23,6 +24,7 @@ MACHINE_LABEL = "Stenotype Machine:"
 MACHINE_AUTO_START_LABEL = "Automatically Start"
 DICT_FILE_LABEL = "Dictionary File:"
 DICT_FILE_DIALOG_TITLE = "Select a Dictionary File"
+DICTIONARY_MANAGER_BUTTON_LABEL = "Dictionary Manager"
 LOG_FILE_LABEL = "Log File:"
 LOG_STROKES_LABEL = "Log Strokes"
 LOG_TRANSLATIONS_LABEL = "Log Translations"
@@ -222,6 +224,14 @@ class DictionaryConfig(wx.Panel):
                                                      initialValue=dict_file,
                                                      startDirectory=dict_dir)
         sizer.Add(self.file_browser, border=UI_BORDER, flag=wx.ALL| wx.EXPAND)
+        
+        # Dictionary Manager button.
+        self.dictionary_manager_button = wx.Button(self, label=DICTIONARY_MANAGER_BUTTON_LABEL)
+        self.dictionary_manager_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
+
+        sizer.Add(self.dictionary_manager_button,
+                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
+        
         self.SetSizer(sizer)
 
     def save(self):
@@ -229,6 +239,12 @@ class DictionaryConfig(wx.Panel):
         self.config.set(conf.DICTIONARY_CONFIG_SECTION,
                         conf.DICTIONARY_FILE_OPTION,
                         self.file_browser.GetValue())
+        
+    def _show_dictionary_manager(self, event=None):
+        frame = dictionarymanager.dmFrame()
+        frame.SetSize((600, 400))
+        frame.Show()
+        return frame
 
         
 class LoggingConfig(wx.Panel):
