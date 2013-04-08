@@ -89,14 +89,14 @@ class dmGrid(wxGrid):
             # The new value is already in store just triggering reposition
             row = self.store.changeDictionaries(row, self.store.getDictionariesForRow(row))
         self._cellChanging = False
-        if row != None:
+        if row is not None:
             self.MakeCellVisible(row, evt.Col)
             self.SelectRow(row)
     
     def _onProgressChange(self, percent):
         """ To track dictionary loading progress """
         
-        if percent != None:
+        if percent is not None:
             self.progress.Update(percent)
             
     def _startGridJob(self, title, text):

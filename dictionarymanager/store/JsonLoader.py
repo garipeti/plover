@@ -10,7 +10,7 @@ class JsonLoader(DictionaryLoader):
     def load(self, filename):
         """Decode JSON to dictionary."""
         s = DictionaryLoader.load(self, filename)
-        if s != None:
+        if s is not None:
             try:
                 return json.loads(s)
             except UnicodeDecodeError:

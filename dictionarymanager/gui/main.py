@@ -59,13 +59,15 @@ class dmFrame(wx.Dialog):
         
         # dictionary store
         self.store = Store.Store()
+        self.store.subscribe("dataChange", self._onDictionaryChange)
         
         # auxiliary variables
         self._keyTimer = None
         
         # loaded dictionaries
         loadedHolder = wx.BoxSizer(wx.HORIZONTAL)
-        loadedHolder.Add(wx.StaticText(self, label=self.LOADED_LABEL), 0, wx.ALL, 5)
+        loadedHolder.Add(wx.StaticText(self, label=self.LOADED_LABEL), 0, flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
+        loadedHolder.AddSpacer(5)
         self.loadedSizer = wx.BoxSizer(wx.HORIZONTAL)
         loadedHolder.Add(self.loadedSizer, 1, wx.EXPAND)
         
@@ -77,9 +79,9 @@ class dmFrame(wx.Dialog):
         
         # search fields layout
         searchSizer = wx.BoxSizer(wx.HORIZONTAL)
-        searchSizer.Add(wx.StaticText(self, label=self.FILTER_STROKE_LABEL), 0, wx.ALL, 5)
+        searchSizer.Add(wx.StaticText(self, label=self.FILTER_STROKE_LABEL), 0, flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
         searchSizer.Add(self.searchStrokeField, 1, wx.EXPAND)
-        searchSizer.Add(wx.StaticText(self, label=self.FILTER_TRANSLATION_LABEL), 0, wx.ALL, 5)
+        searchSizer.Add(wx.StaticText(self, label=self.FILTER_TRANSLATION_LABEL), 0, flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
         searchSizer.Add(self.searchTranslationField, 1, wx.EXPAND)
         
         # grid
@@ -138,12 +140,14 @@ class dmFrame(wx.Dialog):
             self.store.loadDictionary(filename)
             
             box = wx.BoxSizer(wx.HORIZONTAL)
-            box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)))
+            box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
+                    flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
             save = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_FILE_SAVE))
             save.Bind(wx.EVT_BUTTON, self._saveDictionary)
             box.Add(save)
             box.Hide(save)
             visibility = wx.Button(self, wx.ID_ANY, self.VISIBILITY_BUTTON_HIDE)
+            visibility.Bind(wx.EVT_BUTTON, self._toggleDictionaryVisibility)
             box.Add(visibility)
             remove = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_CROSS_MARK))
             remove.Bind(wx.EVT_BUTTON, self._closeDictionary)
@@ -156,19 +160,25 @@ class dmFrame(wx.Dialog):
     
     def _closeDictionary(self, evt):
         btn = evt.GetEventObject()
-        items = self.loadedSizer.GetChildren()
-        for i, item in enumerate(items):
-            if item.GetSizer().GetChildren()[self.POSITION_CLOSE].GetWindow() == btn:
-                self.loadedSizer.Hide(i)
-                self.loadedSizer.Remove(i)
-                self.sizer.Layout()
-                self.store.closeDictionary(i)
-                break
-    
+        BeginBusyCursor()
+        self.grid.MakeCellVisible(0, 0)
+        try:
+            items = self.loadedSizer.GetChildren()
+            for i, item in enumerate(items):
+                if item.GetSizer().GetChildren()[self.POSITION_CLOSE].GetWindow() == btn:
+                    self.loadedSizer.Hide(i)
+                    self.loadedSizer.Remove(i)
+                    self.sizer.Layout()
+                    self.store.closeDictionary(i)
+                    break
+        finally:
+            EndBusyCursor()
+
     def _onDictionaryChange(self, index):
         items = self.loadedSizer.GetChildren()
         if len(items) > index:
             items[index].GetSizer().Show(self.POSITION_SAVE)
+            self.loadedSizer.Layout()
     
     def _saveDictionary(self, evt):
         btn = evt.GetEventObject()
@@ -176,12 +186,28 @@ class dmFrame(wx.Dialog):
         for i, item in enumerate(items):
             if item.GetSizer().GetChildren()[self.POSITION_SAVE].GetWindow() == btn:
                 item.GetSizer().Hide(btn)
+                self.loadedSizer.Layout()
                 self.store.saveDictionary(i)
+                break
+                
+    def _toggleDictionaryVisibility(self, evt):
+        btn = evt.GetEventObject()
+        items = self.loadedSizer.GetChildren()
+        for i, item in enumerate(items):
+            if item.GetSizer().GetChildren()[self.POSITION_VISIBILITY].GetWindow() == btn:
+                btn.SetLabel(self.VISIBILITY_BUTTON_SHOW if btn.GetLabel() == self.VISIBILITY_BUTTON_HIDE else self.VISIBILITY_BUTTON_HIDE)
+                BeginBusyCursor()
+                self.grid.MakeCellVisible(0, 0)
+                try:
+                    self.store.toggleDictionaryVisibility(i)
+                finally:
+                    EndBusyCursor()
+                break
     
     def _onFilterKeyUp(self, evt):
         """ KeyUp event on search fields """
         
-        if self._keyTimer != None:
+        if self._keyTimer is not None:
             self._keyTimer.cancel()
         
         self._keyTimer = Timer(0.5, self._callFilterChange)
@@ -193,14 +219,14 @@ class dmFrame(wx.Dialog):
     def _onFilterChange(self):
         """ KeyUp event on search fields """
         
-        if self._keyTimer != None:
+        if self._keyTimer is not None:
             self._keyTimer.cancel()
             self._keyTimer = None
             
-        filters = [
-                   {"pattern": self.searchStrokeField.GetValue(), "column": Store.Store.ATTR_STROKE},
-                   {"pattern": self.searchTranslationField.GetValue(), "column": Store.Store.ATTR_TRANSLATION}
-                ]
+        filters = {
+                   Store.Store.ATTR_STROKE: self.searchStrokeField.GetValue(),
+                   Store.Store.ATTR_TRANSLATION: self.searchTranslationField.GetValue()
+                }
         
         BeginBusyCursor()
         self.grid.MakeCellVisible(0, 0)

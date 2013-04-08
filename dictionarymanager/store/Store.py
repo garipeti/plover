@@ -26,13 +26,14 @@ class Store():
         self.filteredRows = []
         
         # filtering
-        self.filters = []
+        self.filters = {}
+        self.filterFnList = []
 
         #sorting
         self.cmpFn = lambda a, b: 0 if a[self.ATTR_STROKE] == b[self.ATTR_STROKE] else 1 if a[self.ATTR_STROKE] > b[self.ATTR_STROKE] else -1
         
         # subscribers
-        self.subscribers = {"insert": [], "delete": [], "update": [], "progress": []}
+        self.subscribers = {"insert": [], "delete": [], "update": [], "progress": [], "dataChange": []}
         
     def getCount(self):
         return self.count
@@ -70,14 +71,14 @@ class Store():
                 index += 1
         
     def hideItem(self, item, index = None):
-        if index == None and item in self.rows:
+        if index is None and item in self.rows:
             index = self.rows.index(item)
-        if index != None:
+        if index is not None:
             self.fireEvent("delete", item, index)
             self.filteredRows.append(self.rows.pop(index))
     
     def showItem(self, item, currentIndex = None):
-        if currentIndex == None:
+        if currentIndex is None:
             currentIndex = self.filteredRows.index(item)
         pos = self.findPlaceForNewItem(item, 0, len(self.rows)-1)
         self.rows.insert(pos, self.filteredRows.pop(currentIndex))
@@ -117,46 +118,50 @@ class Store():
             return self.findPlaceForNewItem(item, middle+1, end)
     
     def filterFn(self, row, filters = None):
-        if filters == None:
-            filters = self.filters
-        return not (False in [(filter["pattern"] in row[filter["column"]]) for filter in filters])
+        if filters is None:
+            filters = self.filterFnList
+        return not (False in [f(row) for f in filters])
     
     def filter(self, newFilters):
-        if not False in [True if f in self.filters else False for f in newFilters]:
+        if len(self.filters.keys()) == len(newFilters.keys()) and not False in [True if c in self.filters and self.filters[c] == p else False for c, p in newFilters.iteritems()]:
             return;
         
-        oldFilters = self.filters
+        oldFilterFnList = self.filterFnList
         self.filters = newFilters
-        
-        #progress = Progress(len(self.rows) + len(self.filteredRows), self.fireEvent)
+        self.filterFnList = []
+        for c, p in self.filters.iteritems():
+            t = None
+            if len(p) > 0:
+                if c == self.ATTR_DICTIONARIES:
+                    t = lambda pattern, column: (lambda value: (True in [False if i in pattern else True for i in value[column]]))
+                else:
+                    t = lambda pattern, column: (lambda value: (pattern in value[column]))
+            if t is not None:
+                self.filterFnList.append(t(p, c))
         
         # apply new filter
         filtered = self.filteredRows[:]
         for index in range(len(self.rows)-1, -1, -1):
             item = self.rows[index]
-            did = self.filterFn(item, oldFilters)
-            does = self.filterFn(item, self.filters)
+            did = self.filterFn(item, oldFilterFnList)
+            does = self.filterFn(item)
             if not does and did:
                 self.hideItem(item, index)
             
-            #progress.next()
-            
         for index in range(len(filtered)-1, -1, -1):
             item = filtered[index]
-            did = self.filterFn(item, oldFilters)
-            does = self.filterFn(item, self.filters)
+            did = self.filterFn(item, oldFilterFnList)
+            does = self.filterFn(item)
             if does and not did:
                 self.showItem(item, index)
-            
-            #progress.next()
         
     def loadDictionary(self, filename):
         """ Load dictionary from file """
         
         loader = self.getLoader(filename)
-        if loader != None:
+        if loader is not None:
             dictionary = loader.load(filename)
-            if dictionary != None:
+            if dictionary is not None:
                 self.dictionaries[filename] = dictionary
                 self.dictionaryFilenames.append(filename)
                 self.dictionaryNames.append(self.getDictionaryShortName(filename))
@@ -206,7 +211,7 @@ class Store():
                 files[filename][item[self.ATTR_STROKE]] = item[self.ATTR_TRANSLATION]
         for filename, dictionary in files.iteritems():
             loader = self.getLoader(filename)
-            if loader != None:
+            if loader is not None:
                 loader.write(filename, dictionary)
     
     def saveDictionary(self, index):
@@ -218,7 +223,7 @@ class Store():
             if filename in item[self.ATTR_DICTIONARIES]:
                 data[item[self.ATTR_STROKE]] = item[self.ATTR_TRANSLATION]
         loader = self.getLoader(filename)
-        if loader != None:
+        if loader is not None:
             loader.write(filename, data)
     
     def closeDictionary(self, index):
@@ -244,6 +249,26 @@ class Store():
         self.dictionaries.pop(filename, None)
         self.dictionaryFilenames.remove(filename)
         self.dictionaryNames.remove(self.getDictionaryShortName(filename))
+        if self.ATTR_DICTIONARIES in self.filters and filename in self.filters[self.ATTR_DICTIONARIES]:
+            self.filters[self.ATTR_DICTIONARIES].remove(filename)
+    
+    def toggleDictionaryVisibility(self, index):
+        """ Show/Hide dictionary (apply dictionary filter) """
+        
+        filters = {}
+        dictFilter = []
+        for c, p in self.filters.iteritems():
+            if c == self.ATTR_DICTIONARIES:
+                dictFilter.extend(p)
+            filters[c] = p
+        
+        name = self.dictionaryFilenames[index]
+        if name in dictFilter:
+            dictFilter.remove(name)
+        else:
+            dictFilter.append(name)
+        filters[self.ATTR_DICTIONARIES] = dictFilter
+        self.filter(filters)
     
     def getLoader(self, filename):
         """ Get the loader based on the file extension """
@@ -263,7 +288,7 @@ class Store():
     def findItem(self, column, pattern, index):
         """ Find next item which matches in the given attribute """
         
-        if index == None or index < 0:
+        if index is None or index < 0:
             index = 0
         for i in range(index, self.count):
             if pattern in self.rows[i][column]:
@@ -275,6 +300,8 @@ class Store():
         
         item = self.rows[row]
         item[self.ATTR_STROKE] = stroke
+        for filename in item[self.ATTR_DICTIONARIES]:
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
         return self.repositionItem(item)
         
     def changeTranslation(self, row, translation):
@@ -282,6 +309,8 @@ class Store():
         
         item = self.rows[row]
         item[self.ATTR_TRANSLATION] = translation
+        for filename in item[self.ATTR_DICTIONARIES]:
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
         return self.repositionItem(item)
         
     def changeDictionaries(self, row, dictionaries):
@@ -292,7 +321,7 @@ class Store():
         return self.repositionItem(item)
     
     def insertItem(self, item = None):
-        if item == None:
+        if item is None:
             item = {self.ATTR_STROKE: "", self.ATTR_TRANSLATION: "", self.ATTR_DICTIONARIES: []}
         return self._insertItem(item)
     
@@ -318,7 +347,14 @@ class Store():
         return map(self.getDictionaryIndexByName, self.rows[row][self.ATTR_DICTIONARIES])
     
     def setDictionariesForRow(self, row, indexes):
-        self.rows[row][self.ATTR_DICTIONARIES] = map(self.getDictionaryNameByIndex, indexes)
+        item = self.rows[row]
+        before = item[self.ATTR_DICTIONARIES]
+        dictionaries = map(self.getDictionaryNameByIndex, indexes)
+        item[self.ATTR_DICTIONARIES] = dictionaries
+        changed = list(set(before) - set(dictionaries))
+        changed.extend(list(set(dictionaries) - set(before)))
+        for filename in changed:
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
     
     def getDictionaryIndexByName(self, name):
         if name in self.dictionaryFilenames:
