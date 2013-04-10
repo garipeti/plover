@@ -4,7 +4,8 @@ Store class can read and write dictionaries
 
 """
 
-from dictionarymanager.store import JsonLoader
+from dictionarymanager.store.JsonLoader import JsonLoader
+from dictionarymanager.store.RtfLoader import RtfLoader
 import os
 
 class Store():
@@ -15,7 +16,8 @@ class Store():
     
     def __init__(self):
         self.loaders = {
-                        "json": JsonLoader.JsonLoader()
+                        "json": JsonLoader(),
+                        "rtf": RtfLoader()
                         }
         self.dictionaries = {}
         self.dictionaryNames = []
