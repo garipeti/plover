@@ -1,3 +1,11 @@
+#
+# Scripts copied from Balshetzer's dictionary converters
+#
+# https://github.com/balshetzer/plover_dict_converter
+# git@github.com:balshetzer/plover_dict_converter.git
+#
+
+
 # TODO: Convert illegal characters to UTF8
 # TODO: prevent this from happening: {{|-}^}
 # TODO: Implement \cxp
