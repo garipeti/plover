@@ -1,9 +1,10 @@
 from dictionarymanager.gui.widget.dmGridCellEditor import dmGridCellEditor
 from dictionarymanager.gui.widget.dmGridCellRenderer import dmGridCellRenderer
+from dictionarymanager.gui.widget.dmGridTable import dmGridTable
 from dictionarymanager.store.Store import Store
-from wx._misc import BeginBusyCursor, EndBusyCursor
+from wx._misc import BeginBusyCursor, EndBusyCursor, EVT_TIMER
 from wx.grid import EVT_GRID_LABEL_LEFT_CLICK, EVT_GRID_CELL_CHANGE
-from wxPython.grid import wxGrid, wxGridCellAttr
+from wxPython.grid import wxGrid
 import wx
 
 
@@ -16,98 +17,82 @@ class dmGrid(wxGrid):
     
     def __init__(self, *args, **kwargs):
         wxGrid.__init__(self, *args, **kwargs)
+        
+        self._changedRow = None
 
     def CreateGrid(self, store, rows, cols):
         wxGrid.CreateGrid(self, rows, cols)
         self.store = store
+        
+        self._table = dmGridTable(self.store, [Store.ATTR_STROKE, 
+                                               Store.ATTR_TRANSLATION, 
+                                               Store.ATTR_DICTIONARIES], 
+                                  self.GRID_LABELS[:],
+                                  {
+                                   Store.ATTR_DICTIONARIES: [dmGridCellRenderer, dmGridCellEditor]
+                                   })
+        self.SetTable(self._table)
     
         self._sortingColumn = 0
-        self._sortingAsc = True
+        self._sortingAsc = None
         self._cellChanging = False
         
         self.Bind(EVT_GRID_LABEL_LEFT_CLICK, self._onLabelClick)
         self.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
         
-        attr = wxGridCellAttr()
-        attr.SetEditor(dmGridCellEditor())
-        attr.SetRenderer(dmGridCellRenderer())
-        self.SetColAttr(2, attr)
         self._changeGridLabel()
         
-        self.store.subscribe("insert", self._onInsertRow)
-        self.store.subscribe("delete", self._onDeleteRow)
-        self.store.subscribe("update", self._onUpdateRow)
+        self.store.subscribe("tableChange", self._onTableChange)
         
-    def _onInsertRow(self, item, index):
-        self.InsertRows(index, 1)
-        self.SetCellValue(index, 0, item[Store.ATTR_STROKE])
-        self.SetCellValue(index, 1, item[Store.ATTR_TRANSLATION])
-        self.SetCellValue(index, 2, self.store.renderDictionaries(item))
+    def _onTableChange(self, store):
+        self._table.ResetView(self)
     
-    def _onDeleteRow(self, item, index):
-        self.DeleteRows(index, 1)
-        
-    def _onUpdateRow(self, item, index):
-        self.SetCellValue(index, 0, item[Store.ATTR_STROKE])
-        self.SetCellValue(index, 1, item[Store.ATTR_TRANSLATION])
-        self.SetCellValue(index, 2, self.store.renderDictionaries(item))
-        
     def _onLabelClick(self, evt):
         """ Handle Grid label click"""
         
         if evt.Row == -1:
-            propertyName = Store.ATTR_STROKE if evt.Col == 0 else Store.ATTR_TRANSLATION if evt.Col == 1 else Store.ATTR_DICTIONARIES
-            self._sortingAsc = (not self._sortingAsc) if evt.Col == self._sortingColumn else True
-            self._sortingColumn = evt.Col
-            self._changeGridLabel()
-            
-            self._startGridJob("Progress", "Sorting...")
-            self.MakeCellVisible(0, 0)
-            try:
+            if self._sortingAsc == False and evt.Col == self._sortingColumn:
+                self._sortingAsc = None
+                self._changeGridLabel()
+                self.store.resetOrder()
+            else:
+                if self._sortingAsc is None:
+                    self._sortingAsc = False
+                
+                propertyName = Store.ATTR_STROKE if evt.Col == 0 else Store.ATTR_TRANSLATION if evt.Col == 1 else Store.ATTR_DICTIONARIES
+                self._sortingAsc = (not self._sortingAsc) if evt.Col == self._sortingColumn else True
+                self._sortingColumn = evt.Col
+                self._changeGridLabel()
                 self.store.sort(propertyName, self._sortingAsc)
-            finally:
-                self._endGridJob()
+            
     
     def _changeGridLabel(self):
-        directionLabel = " (asc)" if self._sortingAsc else " (desc)"
+        directionLabel = ""
+        if self._sortingAsc is not None:
+            directionLabel = " (asc)" if self._sortingAsc else " (desc)"
         for i in range(3):
-            self.SetColLabelValue(i, self.GRID_LABELS[i] + (directionLabel if self._sortingColumn == i else ""))
+            self._table.SetColLabelValue(i, self.GRID_LABELS[i] + (directionLabel if self._sortingColumn == i else ""))
     
     def _onCellChange(self, evt):
         """ Handle Grid Cell change """
     
-        if self._cellChanging:
-            return
         row = evt.Row
-        self._cellChanging = True
-        value = self.GetCellValue(row, evt.Col)
-        if evt.Col == 0:
-            row = self.store.changeStroke(row, value)
-        elif evt.Col == 1:
-            row = self.store.changeTranslation(row, value)
-        else:
-            # The new value is already in store just triggering reposition
-            row = self.store.changeDictionaries(row, self.store.getDictionariesForRow(row))
-        self._cellChanging = False
-        if row is not None:
-            self.MakeCellVisible(row, evt.Col)
-            self.SelectRow(row)
-    
-    def _onProgressChange(self, percent):
-        """ To track dictionary loading progress """
+        item = self.store.rows[row]
         
-        if percent is not None:
-            self.progress.Update(percent)
+        self._changedRow = item
+        # TODO: find an event instead of a timer
+        # grid needs time to finish up before we can reorder grid
+        self.timer = wx.Timer(self)
+        self.Bind(EVT_TIMER, self.afterChange, self.timer)
+        self.timer.Start(10)
+        
+    def afterChange(self, evt):
+        self.timer.Stop()
+        self.timer = None
+        self.store.reSort()
+        if self._changedRow is not None and self._changedRow in self.store.rows:
+            index = self.store.rows.index(self._changedRow)
+            self.MakeCellVisible(index, 1)
+            self.SelectRow(index)
             
-    def _startGridJob(self, title, text):
-        BeginBusyCursor()
-        self.progress = wx.ProgressDialog(title, text)
-        self.BeginBatch()
-        self.store.subscribe("progress", self._onProgressChange)
         
-    def _endGridJob(self):
-        self.store.unsubscribe("progress", self._onProgressChange)
-        self.EndBatch()
-        self.progress.Destroy()
-        EndBusyCursor()
-    

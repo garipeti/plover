@@ -124,7 +124,7 @@ class dmFrame(wx.Dialog):
     def _open(self, event=None):
         """ Open up File Dialog to load dictionary """
         
-        dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.OPEN)
+        dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.FD_OPEN)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetFilename()
             dirname = dlg.GetDirectory()
@@ -134,29 +134,47 @@ class dmFrame(wx.Dialog):
         else:
             dlg.Destroy()
     
+    def _saveAS(self, evt=None):
+        """ Open up File Dialog to save dictionary """
+        # TODO: finish
+        dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetFilename()
+            dirname = dlg.GetDirectory()
+            dlg.Destroy()
+            
+            btn = evt.GetEventObject()
+            items = self.loadedSizer.GetChildren()
+            for i, item in enumerate(items):
+                if item.GetSizer().GetChildren()[self.POSITION_SAVE].GetWindow() == btn:
+                    BeginBusyCursor()
+                    try:
+                        self.store.saveDictionary(i, os.path.join(dirname, filename))
+                    finally:
+                        EndBusyCursor()
+            
+        else:
+            dlg.Destroy()
+    
     def _readDictionary(self, filename):
-        self.grid._startGridJob(self.LOADING, self.LOADING_DICTIONARY + self.store.getDictionaryShortName(filename))
-        try:
-            self.store.loadDictionary(filename)
-            
-            box = wx.BoxSizer(wx.HORIZONTAL)
-            box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
-                    flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
-            save = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_FILE_SAVE))
-            save.Bind(wx.EVT_BUTTON, self._saveDictionary)
-            box.Add(save)
-            box.Hide(save)
-            visibility = wx.Button(self, wx.ID_ANY, self.VISIBILITY_BUTTON_HIDE)
-            visibility.Bind(wx.EVT_BUTTON, self._toggleDictionaryVisibility)
-            box.Add(visibility)
-            remove = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_CROSS_MARK))
-            remove.Bind(wx.EVT_BUTTON, self._closeDictionary)
-            box.Add(remove)
-            
-            self.loadedSizer.Add(box)
-            self.loadedSizer.Layout()
-        finally:
-            self.grid._endGridJob()
+        self.store.loadDictionary(filename)
+        
+        box = wx.BoxSizer(wx.HORIZONTAL)
+        box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
+                flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
+        save = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_FILE_SAVE))
+        save.Bind(wx.EVT_BUTTON, self._saveDictionary)
+        box.Add(save)
+        box.Hide(save)
+        visibility = wx.Button(self, wx.ID_ANY, self.VISIBILITY_BUTTON_HIDE)
+        visibility.Bind(wx.EVT_BUTTON, self._toggleDictionaryVisibility)
+        box.Add(visibility)
+        remove = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_CROSS_MARK))
+        remove.Bind(wx.EVT_BUTTON, self._closeDictionary)
+        box.Add(remove)
+        
+        self.loadedSizer.Add(box)
+        self.loadedSizer.Layout()
     
     def _closeDictionary(self, evt):
         btn = evt.GetEventObject()
@@ -187,7 +205,11 @@ class dmFrame(wx.Dialog):
             if item.GetSizer().GetChildren()[self.POSITION_SAVE].GetWindow() == btn:
                 item.GetSizer().Hide(btn)
                 self.loadedSizer.Layout()
-                self.store.saveDictionary(i)
+                BeginBusyCursor()
+                try:
+                    self.store.saveDictionary(i)
+                finally:
+                    EndBusyCursor()
                 break
                 
     def _toggleDictionaryVisibility(self, evt):

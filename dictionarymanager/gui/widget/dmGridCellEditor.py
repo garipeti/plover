@@ -54,7 +54,6 @@ class dmGridCellEditor(wxPyGridCellEditor):
             
         if changed:
             grid.store.setDictionariesForRow(row, selections)
-            grid.GetTable().SetValue(row, col, grid.store.renderDictionariesForRow(row)) # update the table
         
         self.startValue = []
         self._tc.SetChecked(self.startValue)

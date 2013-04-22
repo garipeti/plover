@@ -16,14 +16,15 @@
 # TODO: convert supported commands from Eclipse (ignore some, refuse to translate others)
 
 from __future__ import print_function
-
-import sys
-import re
+from collections import defaultdict
+from dictionarymanager.store.DictionaryLoader import DictionaryLoader
+import collections
 import copy
 import ply.lex as lex
 import ply.yacc as yacc
-from collections import defaultdict
-from dictionarymanager.store.DictionaryLoader import DictionaryLoader
+import re
+import sys
+
 
 class CommandToken(object):
     def __init__(self):
@@ -313,14 +314,20 @@ def normalize_steno(strokes_string):
 class RtfLoader(DictionaryLoader):
     """RTF file format loader."""
     
+    # TODO: create better parser
+    HEADER_PATTERN = re.compile("^\{\\rtf")
+    
     def __init__(self):
         DictionaryLoader.__init__(self)
         
     def load(self, filename):
         """ Decode RTF to dictionary."""
+        d = collections.OrderedDict()
+        conf = {}
         data = DictionaryLoader.load(self, filename)
-        d = {}
         if data is not None:
+            conf = self.getFormat(data)
+            
             keyword_index = defaultdict(list)
             multiple_transformations = []
             
@@ -341,16 +348,18 @@ class RtfLoader(DictionaryLoader):
                 if len(keywords) > 1:
                     multiple_transformations.append((k, v))
         
-        return d
+        return (d, conf)
     
-    def write(self, filename, dictionary):
-        """Encode dictionary to JSON."""
+    def write(self, filename, dictionary, conf = None):
+        """Encode dictionary to RTF."""
+        
+        conf = conf if conf is dict else {}
         
         out = open(filename, 'w')
-        
-        header = """{\\rtf1\\ansi{\\*\\cxrev100}\\cxdict{\\*\\cxsystem Plover}{\\stylesheet{\\s0 Normal;}}"""
+        header = conf.get("header")
+        if header is None:
+            header = """{\\rtf1\\ansi{\\*\\cxrev100}\\cxdict{\\*\\cxsystem Plover}{\\stylesheet{\\s0 Normal;}}"""
         print(header, file=out)
-        
         for s, t in dictionary.items():
             t = re.sub(r'{\.}', '{\\cxp. }', t)
             t = re.sub(r'{!}', '{\\cxp! }', t)
@@ -374,3 +383,14 @@ class RtfLoader(DictionaryLoader):
             
         print("}", file=out)
         
+    def getFormat(self, s):
+        conf = None
+        i = 0
+        if s is not None:
+            for l in s.splitlines():
+                if self.HEADER_PATTERN.match(l):
+                    conf = {"header": l}
+                i += 1
+                if i > 10:
+                    break
+        return conf
