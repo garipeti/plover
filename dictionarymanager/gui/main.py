@@ -46,19 +46,21 @@ class dmFrame(wx.Dialog):
     POSITION_VISIBILITY = 2
     POSITION_CLOSE = 3
     
-    def __init__(self):
+    def __init__(self, store = None, parent = None):
         
-        wx.Dialog.__init__(self, None,
+        wx.Dialog.__init__(self, parent,
                           title=dmFrame.TITLE,
                           pos=wx.DefaultPosition,
                           size=wx.DefaultSize,
                           style=wx.wx.DEFAULT_DIALOG_STYLE)
         
+        self.parent = parent
+        
         # configuration
         self.config = conf.get_config()
         
         # dictionary store
-        self.store = Store.Store()
+        self.store = store if store is not None and isinstance(store, Store.Store) else Store.Store(self.config)
         self.store.subscribe("dataChange", self._onDictionaryChange)
         
         # auxiliary variables
@@ -270,5 +272,8 @@ class dmFrame(wx.Dialog):
     def _quit(self, event=None):
         """ Quit application """
         
-        self.Destroy()
+        if self.parent is not None:
+            self.Hide()
+        else:
+            self.Destroy()
         

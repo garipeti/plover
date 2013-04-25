@@ -7,6 +7,7 @@ Store class can read and write dictionaries
 from dictionarymanager.store.Dictionary import Dictionary
 from dictionarymanager.store.JsonLoader import JsonLoader
 from dictionarymanager.store.RtfLoader import RtfLoader
+import plover.config as conf
 import os
 
 class Store():
@@ -15,7 +16,8 @@ class Store():
     ATTR_TRANSLATION = "translation"
     ATTR_DICTIONARIES = "dictionaries"
     
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         self.loaders = {
                         "json": JsonLoader(),
                         "rtf": RtfLoader()
@@ -153,8 +155,17 @@ class Store():
             
         self.fireEvent("tableChange", self)
         
+    def loadDictionaries(self):
+        dict_files = self.config.get(conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        for dict_file in filter(None, [x.strip() for x in dict_files.splitlines()]):
+            self.loadDictionary(os.path.join(conf.CONFIG_DIR, dict_file))
+    
     def loadDictionary(self, filename):
         """ Load dictionary from file """
+        
+        # we already loaded this dictionary
+        if filename in self.dictionaryFilenames:
+            return
         
         loader = self.getLoader(filename)
         if loader is not None:
@@ -342,22 +353,10 @@ class Store():
             return self.dictionaryFilenames[index]
         return None
     
-    
-class Progress():
-    def __init__(self, length, fireEvent):
-        self.length = length
-        self.loaded = 0
-        self.onePercent = length / 100
-        self.nextPercent = self.onePercent
-        self.progress = 0
-        self.fireEvent = fireEvent
-        
-    def next(self):
-        self.loaded += 1
-        if self.loaded > self.nextPercent:
-            self.nextPercent += self.onePercent
-            self.progress += 1
-            self.fireEvent("progress", self.progress)
-            return self.progress
-        return None
-        
+    def getMerged(self):
+        ret = {}
+        for i in range(len(self.dictionaries.values())-1, -1, -1):
+            for k, v in self.dictionaries.values()[i].iteritems():
+                ret[k] = v
+            
+        return ret

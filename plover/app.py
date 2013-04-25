@@ -32,6 +32,7 @@ import plover.machine as machine
 import plover.machine.base
 import plover.machine.sidewinder
 import plover.dictionary as dictionary
+from dictionarymanager.store.Store import Store
 
 class StenoEngine:
     """Top-level class for using a stenotype machine for text input.
@@ -108,23 +109,9 @@ class StenoEngine:
 
         # Load the dictionary. The dictionary path can be either
         # absolute or relative to the configuration directory.
-        dictionary_filename = self.config.get(conf.DICTIONARY_CONFIG_SECTION,
-                                              conf.DICTIONARY_FILE_OPTION)
-        dictionary_path = os.path.join(conf.CONFIG_DIR, dictionary_filename)
-        if not os.path.isfile(dictionary_path):
-            raise ValueError('Invalid configuration value for %s: %s' %
-                             (conf.DICTIONARY_FILE_OPTION, dictionary_path))
-        dictionary_extension = os.path.splitext(dictionary_path)[1]
-        if dictionary_extension == conf.JSON_EXTENSION:
-            try:
-                with open(dictionary_path, 'r') as f:
-                    self.dictionary = json.load(f)
-            except UnicodeDecodeError:
-                with open(dictionary_path, 'r') as f:
-                    self.dictionary = json.load(f, conf.ALTERNATIVE_ENCODING)
-        else:
-            raise ValueError('The value of %s must end with %s.' %
-                             (conf.DICTIONARY_FILE_OPTION, conf.JSON_EXTENSION))
+        self.store = Store(self.config)
+        self.store.loadDictionaries()
+        self.dictionary = self.store.getMerged()
 
         # Initialize the logger.
         log_file = os.path.join(conf.CONFIG_DIR,

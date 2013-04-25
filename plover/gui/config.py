@@ -225,13 +225,6 @@ class DictionaryConfig(wx.Panel):
                                                      startDirectory=dict_dir)
         sizer.Add(self.file_browser, border=UI_BORDER, flag=wx.ALL| wx.EXPAND)
         
-        # Dictionary Manager button.
-        self.dictionary_manager_button = wx.Button(self, label=DICTIONARY_MANAGER_BUTTON_LABEL)
-        self.dictionary_manager_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
-
-        sizer.Add(self.dictionary_manager_button,
-                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
-        
         self.SetSizer(sizer)
 
     def save(self):
@@ -239,13 +232,6 @@ class DictionaryConfig(wx.Panel):
         self.config.set(conf.DICTIONARY_CONFIG_SECTION,
                         conf.DICTIONARY_FILE_OPTION,
                         self.file_browser.GetValue())
-        
-    def _show_dictionary_manager(self, event=None):
-        frame = dictionarymanager.dmFrame()
-        frame.SetSize((600, 400))
-        frame.Show()
-        return frame
-
         
 class LoggingConfig(wx.Panel):
     """Logging configuration graphical user interface."""
