@@ -15,7 +15,9 @@ import ConfigParser
 import plover.app as app
 import plover.config as conf
 import plover.gui.config as gui
-import plover.exception as exception
+
+from plover.exception import InvalidConfigurationError
+
 from plover import __name__ as __software_name__
 from plover import __version__
 from plover import __copyright__
@@ -25,9 +27,10 @@ from plover import __credits__
 from plover import __license__
 from dictionarymanager.gui import main as dictionarymanager
 
+
 class PloverGUI(wx.App):
     """The main entry point for the Plover application."""
-    
+
     def __init__(self):
         wx.App.__init__(self, redirect=False)
 
@@ -37,6 +40,7 @@ class PloverGUI(wx.App):
         frame.Show()
         self.SetTopWindow(frame)
         return True
+
 
 class Frame(wx.Frame):
     """The top-level GUI element of the Plover application."""
@@ -66,24 +70,34 @@ class Frame(wx.Frame):
                           title=Frame.TITLE,
                           pos=wx.DefaultPosition,
                           size=wx.DefaultSize,
-                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER|
-                                                           wx.RESIZE_BOX|
+                          style=wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER |
+                                                           wx.RESIZE_BOX |
                                                            wx.MAXIMIZE_BOX))
         config_file = config_file
         config = ConfigParser.RawConfigParser()
         config.read(config_file)
-        try:
-            self.steno_engine = app.StenoEngine()
-            self.steno_engine.formatter.engine_command_callback = \
-              self.consume_command
-        except exception.SerialPortException, spe:
-            self.steno_engine = None
-            alert_dialog = wx.MessageDialog(self._show_config_dialog(),
-                                            unicode(spe),
-                                            self.ALERT_DIALOG_TITLE,
-                                            wx.OK | wx.ICON_INFORMATION)
-            alert_dialog.ShowModal()
-            alert_dialog.Destroy()
+
+        while True:
+            # Check configuration loop
+            try:
+                self.steno_engine = app.StenoEngine(self.consume_command)
+                break
+            except InvalidConfigurationError, spe:
+                self.steno_engine = None
+                config_dialog = self._create_config_dialog(
+                                                    during_plover_init=True)
+
+                alert_dialog = wx.MessageDialog(config_dialog,
+                                                unicode(spe),
+                                                self.ALERT_DIALOG_TITLE,
+                                                wx.OK | wx.ICON_INFORMATION)
+                alert_dialog.ShowModal()
+                alert_dialog.Destroy()
+
+                ret = config_dialog.ShowModal()
+                if ret == wx.ID_CANCEL:
+                    self._quit()
+                    return
 
         # Status button.
         on_icon_file = os.path.join(conf.ASSETS_DIR, self.ON_IMAGE_FILE)
@@ -94,7 +108,8 @@ class Frame(wx.Frame):
         self.status_button.Bind(wx.EVT_BUTTON, self._toggle_steno_engine)
 
         # Configure button.
-        self.configure_button = wx.Button(self, label=self.CONFIGURE_BUTTON_LABEL)
+        self.configure_button = wx.Button(self,
+                                          label=self.CONFIGURE_BUTTON_LABEL)
         self.configure_button.Bind(wx.EVT_BUTTON, self._show_config_dialog)
 
         # Dictionary Manager button.
@@ -108,16 +123,16 @@ class Frame(wx.Frame):
         # Layout.
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.status_button,
-                  flag=wx.ALL|wx.ALIGN_CENTER_VERTICAL,
+                  flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.configure_button,
-                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
+                  flag=wx.TOP | wx.BOTTOM | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.dm_button,
                   flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         sizer.Add(self.about_button,
-                  flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL,
+                  flag=wx.TOP | wx.BOTTOM | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL,
                   border=self.BORDER)
         self.SetSizer(sizer)
         sizer.Fit(self)
@@ -130,12 +145,14 @@ class Frame(wx.Frame):
     def consume_command(self, command):
         # Wrap all actions in a CallAfter since the initiator of the
         # action is likely a thread other than the wx thread.
+        # TODO: When using keyboard to resume the stroke is typed.
         if command == self.COMMAND_SUSPEND and self.steno_engine:
             wx.CallAfter(self.steno_engine.set_is_running, False)
         elif command == self.COMMAND_RESUME and self.steno_engine:
             wx.CallAfter(self.steno_engine.set_is_running, True)
         elif command == self.COMMAND_TOGGLE and self.steno_engine:
-            wx.CallAfter(self.steno_engine.set_is_running, not self.steno_engine.is_running)
+            wx.CallAfter(self.steno_engine.set_is_running,
+                         not self.steno_engine.is_running)
         elif command == self.COMMAND_CONFIGURE:
             wx.CallAfter(self._show_config_dialog)
         elif command == self.COMMAND_FOCUS:
@@ -169,8 +186,20 @@ class Frame(wx.Frame):
         """Called when the status button is clicked."""
         self.steno_engine.set_is_running(not self.steno_engine.is_running)
 
+    def _create_config_dialog(self, event=None, during_plover_init=False):
+        """This will create a configuration dialog.
+
+        If during_plover_init is set to True, the user won't be prompted about
+        the restart of Plover: his modifications will be used to initialize
+        Plover.
+        """
+        dialog = gui.ConfigurationDialog(conf.CONFIG_FILE,
+                                         parent=self,
+                                         during_plover_init=during_plover_init)
+        return dialog
+
     def _show_config_dialog(self, event=None):
-        dialog = gui.ConfigurationDialog(conf.CONFIG_FILE, self.steno_engine.store)
+        dialog = self._create_config_dialog(event)
         dialog.Show()
         return dialog
 
@@ -191,4 +220,3 @@ class Frame(wx.Frame):
         info.Developers = __credits__
         info.License = __license__
         wx.AboutBox(info)
-

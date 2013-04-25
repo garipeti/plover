@@ -6,17 +6,13 @@
 # Import standard library modules.
 import os
 import oslayer.config
-import logging
-import logging.handlers
 import ConfigParser
 import serial
 import shutil
 
-# We need imports to be explicit for py2app. 
-# There may be another way but by default it doesn't 
+# We need imports to be explicit for py2app.
+# There may be another way but by default it doesn't
 # understand the dynamic loading used here.
-import plover.dictionary.eclipse
-import plover.dictionary.dcat
 import plover.machine.geminipr
 import plover.machine.txbolt
 import plover.machine.sidewinder
@@ -33,7 +29,6 @@ MACHINE_TYPE_OPTION = 'machine_type'
 MACHINE_AUTO_START_OPTION = 'auto_start'
 DICTIONARY_CONFIG_SECTION = 'Dictionary Configuration'
 DICTIONARY_FILE_OPTION = 'dictionary_file'
-DICTIONARY_FORMAT_OPTION = 'dictionary_format'
 LOGGING_CONFIG_SECTION = 'Logging Configuration'
 LOG_FILE_OPTION = 'log_file'
 ENABLE_STROKE_LOGGING_OPTION = 'enable_stroke_logging'
@@ -43,7 +38,6 @@ ENABLE_TRANSLATION_LOGGING_OPTION = 'enable_translation_logging'
 DEFAULT_MACHINE_TYPE = 'Microsoft Sidewinder X4'
 DEFAULT_MACHINE_AUTO_START = 'false'
 DEFAULT_DICTIONARY_FILE = 'dict.json'
-DEFAULT_DICTIONARY_FORMAT = 'Eclipse'
 DEFAULT_LOG_FILE = 'plover.log'
 DEFAULT_ENABLE_STROKE_LOGGING = 'true'
 DEFAULT_ENABLE_TRANSLATION_LOGGING = 'true'
@@ -78,6 +72,7 @@ SERIAL_ALL_OPTIONS = (SERIAL_PORT_OPTION,
                       SERIAL_RTSCTS_OPTION)
 SERIAL_DEFAULT_TIMEOUT = 2.0
 
+
 def import_named_module(name, module_dictionary):
     """Returns the Python module corresponding to the given name.
 
@@ -92,9 +87,9 @@ def import_named_module(name, module_dictionary):
 
     Returns the references module, or None if the name is not a key in
     the module_dictionary.
-    
+
     """
-    mod_name =  module_dictionary.get(name, None)
+    mod_name = module_dictionary.get(name, None)
     if mod_name is not None:
         hierarchy = mod_name.rsplit('.', 1)
         if len(hierarchy) == 2:
@@ -104,12 +99,13 @@ def import_named_module(name, module_dictionary):
         return __import__(mod_name, fromlist=fromlist)
     return None
 
+
 def get_config():
     """Return Plover's ConfigParser object.
 
     If the given configuration file does not exist, a default
     configuration file is created.
-    
+
     """
     config_dir = CONFIG_DIR
     config_file = CONFIG_FILE
@@ -128,12 +124,13 @@ def get_config():
     if not os.path.exists(config_file):
         with open(config_file, 'w') as f:
             f.close()
-        
+
     # Read in the configuration file.
     config = ConfigParser.RawConfigParser()
     config.read(config_file)
     verify_config(config)
     return config
+
 
 def verify_config(config):
     """Checks that the configuration contains values for all parameters.
@@ -148,15 +145,13 @@ def verify_config(config):
     """
     config_file = CONFIG_FILE
     # Verify options exist.
-    for section, option, default  in (\
+    for section, option, default in (
       (LOGGING_CONFIG_SECTION, LOG_FILE_OPTION,
                                DEFAULT_LOG_FILE),
       (LOGGING_CONFIG_SECTION, ENABLE_TRANSLATION_LOGGING_OPTION,
                                DEFAULT_ENABLE_TRANSLATION_LOGGING),
       (LOGGING_CONFIG_SECTION, ENABLE_STROKE_LOGGING_OPTION,
                                DEFAULT_ENABLE_STROKE_LOGGING),
-      (DICTIONARY_CONFIG_SECTION, DICTIONARY_FORMAT_OPTION,
-                                  DEFAULT_DICTIONARY_FORMAT),
       (DICTIONARY_CONFIG_SECTION, DICTIONARY_FILE_OPTION,
                                   DEFAULT_DICTIONARY_FILE),
       (MACHINE_CONFIG_SECTION, MACHINE_TYPE_OPTION,
@@ -168,7 +163,7 @@ def verify_config(config):
             config.add_section(section)
         if not config.has_option(section, option):
             config.set(section, option, default)
-    
+
     # Write the file to disk.
     with open(config_file, 'w') as f:
         config.write(f)
@@ -217,11 +212,13 @@ def get_serial_params(section, config):
     else:
         timeout = SERIAL_DEFAULT_TIMEOUT
     serial_params[SERIAL_TIMEOUT_OPTION] = timeout
-    # Helper class to convert a dictionary to an object.
+
     class _Struct(object):
+        # Helper class to convert a dictionary to an object.
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
     return _Struct(**serial_params)
+
 
 def set_serial_params(serial_port, section, config):
     """Writes a serial.Serial object to a section of a ConfigParser object.

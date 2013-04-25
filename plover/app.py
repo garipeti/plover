@@ -15,24 +15,87 @@ interface.
 """
 
 # Import standard library modules.
-import os
+from os.path import join, isfile, splitext
 import logging
-import logging.handlers
-try :
-    import simplejson as json
-except ImportError :
-    import json
+from logging.handlers import RotatingFileHandler
 
 # Import plover modules.
 import plover.config as conf
 import plover.formatting as formatting
 import plover.oslayer.keyboardcontrol as keyboardcontrol
 import plover.steno as steno
-import plover.machine as machine
+from plover.machine import SUPPORTED_DICT as SUPPORTED_MACHINES_DICT
 import plover.machine.base
 import plover.machine.sidewinder
-import plover.dictionary as dictionary
 from dictionarymanager.store.Store import Store
+from plover.exception import InvalidConfigurationError
+import steno_dictionary
+import steno
+import translation
+
+# Because 2.7 doesn't have this yet.
+class SimpleNamespace(object):
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+    def __repr__(self):
+        keys = sorted(self.__dict__)
+        items = ("{}={!r}".format(k, self.__dict__[k]) for k in keys)
+        return "{}({})".format(type(self).__name__, ", ".join(items))
+        
+
+def check_steno_config(config_params):
+    """This will do several check on the given configuration
+
+    This method can be used in StenoEngine's __init__ method, but also
+    when exiting the configuration dialog.
+
+    @return: a tuple composed of:
+        - a list of configuration errors
+        - a tuple of the following values:
+            * machine_type
+            * user_dictionary
+    """
+    errors = []
+    machine_type = config_params.get(conf.MACHINE_CONFIG_SECTION,
+                                     conf.MACHINE_TYPE_OPTION)
+    if machine_type not in SUPPORTED_MACHINES_DICT:
+        # The machine isn't supported
+        error = InvalidConfigurationError(
+            'Invalid configuration value for %s: %s' %
+            (conf.MACHINE_TYPE_OPTION, machine_type))
+        errors.append(error)
+
+    # Load the dictionary. The dictionary path can be either
+    # absolute or relative to the configuration directory.
+    dictionary_filename = config_params.get(conf.DICTIONARY_CONFIG_SECTION,
+                                            conf.DICTIONARY_FILE_OPTION)
+    dictionary_path = join(conf.CONFIG_DIR, dictionary_filename)
+    if not isfile(dictionary_path):
+        error = InvalidConfigurationError(
+            'Invalid configuration value for %s: %s' %
+            (conf.DICTIONARY_FILE_OPTION, dictionary_path))
+        errors.append(error)
+
+    dictionary_extension = splitext(dictionary_path)[1]
+    if dictionary_extension != conf.JSON_EXTENSION:
+        error = InvalidConfigurationError(
+            'The value of %s must end with %s.' %
+            (conf.DICTIONARY_FILE_OPTION, conf.JSON_EXTENSION))
+        errors.append(error)
+
+    # Load the dictionary. The dictionary path can be either
+    # absolute or relative to the configuration directory.
+    user_dictionary = None
+    try:
+        with open(dictionary_path, 'r') as f:
+            user_dictionary = steno_dictionary.load_dictionary(f.read())
+    except ValueError:
+        error = InvalidConfigurationError(
+            'The dictionary file contains incorrect json.')
+        errors.append(error)
+
+    return errors, (machine_type, user_dictionary)
+
 
 class StenoEngine:
     """Top-level class for using a stenotype machine for text input.
@@ -74,7 +137,7 @@ class StenoEngine:
 
     """
 
-    def __init__(self):
+    def __init__(self, engine_command_callback):
         """Creates and configures a single steno pipeline."""
         self.subscribers = []
         self.is_running = False
@@ -83,29 +146,29 @@ class StenoEngine:
         self.translator = None
         self.formatter = None
         self.output = None
+
+        # Check and use configuration
         self.config = conf.get_config()
+        config_errors, config_values = check_steno_config(self.config)
+        for error in config_errors:
+            # This will raise one of the configuration errors.
+            raise error
+            
+        machine_type, user_dictionary = config_values
 
         # Set the machine module and any initialization variables.
-        machine_type = self.config.get(conf.MACHINE_CONFIG_SECTION,
-                                       conf.MACHINE_TYPE_OPTION)
-        self.machine_module = conf.import_named_module(machine_type,
-                                                       machine.supported)
+        self.machine_module = conf.import_named_module(
+                                                machine_type,
+                                                SUPPORTED_MACHINES_DICT)
         if self.machine_module is None:
-            raise ValueError('Invalid configuration value for %s: %s' %
-                             (conf.MACHINE_TYPE_OPTION, machine_type))
+            raise InvalidConfigurationError(
+                'Invalid configuration value for %s: %s' %
+                (conf.MACHINE_TYPE_OPTION, machine_type))
+
         if issubclass(self.machine_module.Stenotype,
                       plover.machine.base.SerialStenotypeBase):
             serial_params = conf.get_serial_params(machine_type, self.config)
             self.machine_init.update(serial_params.__dict__)
-
-        # Set the steno dictionary format module.
-        dictionary_format = self.config.get(conf.DICTIONARY_CONFIG_SECTION,
-                                            conf.DICTIONARY_FORMAT_OPTION)
-        self.dictionary_module = conf.import_named_module(dictionary_format,
-                                                          dictionary.supported)
-        if self.dictionary_module is None:
-            raise ValueError('Invalid configuration value for %s: %s' %
-                             (conf.DICTIONARY_FORMAT_OPTION, dictionary_format))
 
         # Load the dictionary. The dictionary path can be either
         # absolute or relative to the configuration directory.
@@ -114,35 +177,53 @@ class StenoEngine:
         self.dictionary = self.store.getMerged()
 
         # Initialize the logger.
-        log_file = os.path.join(conf.CONFIG_DIR,
-                                self.config.get(conf.LOGGING_CONFIG_SECTION,
-                                                conf.LOG_FILE_OPTION))
+        log_file = join(conf.CONFIG_DIR,
+                        self.config.get(conf.LOGGING_CONFIG_SECTION,
+                                        conf.LOG_FILE_OPTION))
         self.logger = logging.getLogger(conf.LOGGER_NAME)
         self.logger.setLevel(logging.DEBUG)
-        handler = logging.handlers.RotatingFileHandler(log_file,
-                                                    maxBytes=conf.LOG_MAX_BYTES,
-                                                    backupCount=conf.LOG_COUNT)
+        handler = RotatingFileHandler(log_file, maxBytes=conf.LOG_MAX_BYTES,
+                                      backupCount=conf.LOG_COUNT,)
         handler.setFormatter(logging.Formatter(conf.LOG_FORMAT))
         self.logger.addHandler(handler)
 
         # Construct the stenography capture-translate-format-display pipeline.
         self.machine = self.machine_module.Stenotype(**self.machine_init)
-        self.output = keyboardcontrol.KeyboardEmulation()
-        self.translator = steno.Translator(self.machine,
-                                           self.dictionary,
-                                           self.dictionary_module)
-        self.formatter = formatting.Formatter(self.translator)
-        auto_start = self.config.getboolean(conf.MACHINE_CONFIG_SECTION,
-                                            conf.MACHINE_AUTO_START_OPTION)
-        self.set_is_running(auto_start)
-
-        # Add hooks for logging.
+        self.translator = translation.Translator()
+        self.translator.set_dictionary(user_dictionary)
+        self.formatter = formatting.Formatter()
+        
+        # Add hooks for logging. Do this first so logs appear in order.
         if self.config.getboolean(conf.LOGGING_CONFIG_SECTION,
                                   conf.ENABLE_STROKE_LOGGING_OPTION):
             self.machine.add_callback(self._log_stroke)
         if self.config.getboolean(conf.LOGGING_CONFIG_SECTION,
                                   conf.ENABLE_TRANSLATION_LOGGING_OPTION):
-            self.translator.add_callback(self._log_translation)
+            self.translator.add_listener(self._log_translation)        
+        
+        self.machine.add_callback(
+            lambda x: self.translator.translate(steno.Stroke(x)))
+        self.translator.add_listener(self.formatter.format)
+        # This seems like a reasonable number. If this becomes a problem it can
+        # be parameterized.
+        self.translator.set_min_undo_length(10)
+        keyboard_control = keyboardcontrol.KeyboardEmulation()
+        bag = SimpleNamespace()
+        bag.send_backspaces = keyboard_control.send_backspaces
+        bag.send_string = keyboard_control.send_string
+        bag.send_key_combination = keyboard_control.send_key_combination
+        bag.send_engine_command = engine_command_callback
+        self.full_output = bag
+        bag = SimpleNamespace()
+        bag.send_engine_command = engine_command_callback
+        self.command_only_output = bag
+        self.running_state = self.translator.get_state()
+        
+        auto_start = self.config.getboolean(conf.MACHINE_CONFIG_SECTION,
+                                            conf.MACHINE_AUTO_START_OPTION)
+        self.set_is_running(auto_start)
+
+
 
         # Start the machine monitoring for steno strokes.
         self.machine.start_capture()
@@ -150,9 +231,11 @@ class StenoEngine:
     def set_is_running(self, value):
         self.is_running = value
         if self.is_running:
-            self.formatter.text_output = self.output
+            self.translator.set_state(self.running_state)
+            self.formatter.set_output(self.full_output)
         else:
-            self.formatter.text_output = None
+            self.translator.clear_state()
+            self.formatter.set_output(self.command_only_output)
         if isinstance(self.machine, plover.machine.sidewinder.Stenotype):
             self.machine.suppress_keyboard(self.is_running)
         for callback in self.subscribers:
@@ -172,7 +255,7 @@ class StenoEngine:
             self.machine.stop_capture()
         self.is_running = False
 
-    def add_callback(self, callback) :
+    def add_callback(self, callback):
         """Subscribes a function to receive changes of the is_running  state.
 
         Arguments:
@@ -182,10 +265,12 @@ class StenoEngine:
         """
         self.subscribers.append(callback)
 
-
     def _log_stroke(self, steno_keys):
         self.logger.info('Stroke(%s)' % ' '.join(steno_keys))
 
-
-    def _log_translation(self, translation, overflow):
-        self.logger.info(translation)
+    def _log_translation(self, undo, do, prev):
+        # TODO: Figure out what to actually log here.
+        for u in undo:
+            self.logger.info('*%s', u)
+        for d in do:
+            self.logger.info(d)

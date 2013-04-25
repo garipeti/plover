@@ -8,11 +8,10 @@ import wx
 import wx.lib.filebrowsebutton as filebrowse
 import ConfigParser
 from serial import Serial
-import plover.machine as machine
-import plover.dictionary as dictionary
-from dictionarymanager.gui import main as dictionarymanager
+from plover.machine import SUPPORTED_DICT as SUPPORTED_MACHINES_DICT
 import plover.config as conf
 import plover.gui.serial_config as serial_config
+from plover.app import check_steno_config
 
 RESTART_DIALOG_MESSAGE = "Plover must be restarted before changes take effect."
 RESTART_DIALOG_TITLE = "Plover"
@@ -34,6 +33,7 @@ CONFIG_PANEL_SIZE = (600, 400)
 UI_BORDER = 4
 COMPONENT_SPACE = 3
 
+
 class ConfigurationDialog(wx.Dialog):
     """A GUI for viewing and editing Plover configuration files.
 
@@ -49,66 +49,98 @@ class ConfigurationDialog(wx.Dialog):
                  title="Plover Configuration",
                  pos=wx.DefaultPosition,
                  size=wx.DefaultSize,
-                 style=wx.DEFAULT_DIALOG_STYLE):
+                 style=wx.DEFAULT_DIALOG_STYLE,
+                 during_plover_init=False):
         """Create a configuration GUI based on the given config file.
 
-        Argument:
+        Arguments:
 
         config_file -- The absolute or relative path to the
         configuration file to view and edit.
-        
+        during_plover_init -- If this is set to True, the configuration dialog
+        won't tell the user that Plover needs to be restarted.
         """
         wx.Dialog.__init__(self, parent, id, title, pos, size, style)
         self.config_file = config_file
         self.config = ConfigParser.RawConfigParser()
         self.config.read(self.config_file)
 
+        self._during_plover_init = during_plover_init
+
+        self._setup_ui()
+
+    def _setup_ui(self):
         sizer = wx.BoxSizer(wx.VERTICAL)
 
+        # The tab container
         notebook = wx.Notebook(self)
+
+        # Configuring each tab
         self.machine_config = MachineConfig(self.config, notebook)
         self.dictionary_config = DictionaryConfig(self.config, notebook)
         self.logging_config = LoggingConfig(self.config, notebook)
+
+        # Adding each tab
         notebook.AddPage(self.machine_config, MACHINE_CONFIG_TAB_NAME)
         notebook.AddPage(self.dictionary_config, DICTIONARY_CONFIG_TAB_NAME)
         notebook.AddPage(self.logging_config, LOGGING_CONFIG_TAB_NAME)
+
         sizer.Add(notebook)
 
+        # The bottom button container
         button_sizer = wx.StdDialogButtonSizer()
+
+        # Configuring and adding the save button
         save_button = wx.Button(self, wx.ID_SAVE, SAVE_CONFIG_BUTTON_NAME)
         save_button.SetDefault()
         button_sizer.AddButton(save_button)
+
+        # Configuring and adding the cancel button
         cancel_button = wx.Button(self, wx.ID_CANCEL)
         button_sizer.AddButton(cancel_button)
-        button_sizer.Realize()        
-        sizer.Add(button_sizer, flag=wx.ALL | wx.ALIGN_RIGHT, border=UI_BORDER)
+        button_sizer.Realize()
 
-        self.Bind(wx.EVT_BUTTON, self._save, save_button)
-        self.Bind(wx.EVT_BUTTON, self._cancel, cancel_button)
+        sizer.Add(button_sizer, flag=wx.ALL | wx.ALIGN_RIGHT, border=UI_BORDER)
         self.SetSizer(sizer)
         sizer.Fit(self)
+
+        # Binding the save button to the self._save callback
+        self.Bind(wx.EVT_BUTTON, self._save, save_button)
 
     def _save(self, event):
         self.machine_config.save()
         self.dictionary_config.save()
         self.logging_config.save()
+
+        errors, config_params = check_steno_config(self.config)
+        if errors:
+            alert_dialog = wx.MessageDialog(self,
+                                            unicode(errors[0]),
+                                            "Configuration error",
+                                            wx.OK | wx.ICON_INFORMATION)
+            alert_dialog.ShowModal()
+            alert_dialog.Destroy()
+            return
+
         with open(self.config_file, 'w') as f:
             self.config.write(f)
-        restart_dialog = wx.MessageDialog(self,
-                                          RESTART_DIALOG_MESSAGE,
-                                          RESTART_DIALOG_TITLE,
-                                          wx.OK | wx.ICON_INFORMATION)
-        restart_dialog.ShowModal()
-        restart_dialog.Destroy()
-        self.Destroy()
 
-    def _cancel(self, event):
-        self.Destroy()
+        if not self._during_plover_init:
+            restart_dialog = wx.MessageDialog(self,
+                                              RESTART_DIALOG_MESSAGE,
+                                              RESTART_DIALOG_TITLE,
+                                              wx.OK | wx.ICON_INFORMATION)
+            restart_dialog.ShowModal()
+            restart_dialog.Destroy()
+            self.Close()
+
+        else:
+            self.EndModal(wx.ID_SAVE)
 
 
 class MachineConfig(wx.Panel):
     """Stenotype machine configuration graphical user interface."""
-    
+
     def __init__(self, config, parent):
         """Create a configuration component based on the given ConfigParser.
 
@@ -128,7 +160,7 @@ class MachineConfig(wx.Panel):
         box.Add(wx.StaticText(self, label=MACHINE_LABEL),
                 border=COMPONENT_SPACE,
                 flag=wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL | wx.RIGHT)
-        machines = machine.supported.keys()
+        machines = SUPPORTED_MACHINES_DICT.keys()
         value = self.config.get(conf.MACHINE_CONFIG_SECTION,
                                 conf.MACHINE_TYPE_OPTION)
         self.choice = wx.Choice(self, choices=machines)
@@ -140,7 +172,8 @@ class MachineConfig(wx.Panel):
                                        label=CONFIG_BUTTON_NAME)
         box.Add(self.config_button)
 
-        self.auto_start_checkbox = wx.CheckBox(self, label=MACHINE_AUTO_START_LABEL)
+        self.auto_start_checkbox = wx.CheckBox(self,
+                                               label=MACHINE_AUTO_START_LABEL)
         auto_start = config.getboolean(conf.MACHINE_CONFIG_SECTION,
                                        conf.MACHINE_AUTO_START_OPTION)
         self.auto_start_checkbox.SetValue(auto_start)
@@ -185,7 +218,7 @@ class MachineConfig(wx.Panel):
     def _update(self, event=None):
         # Refreshes the UI to reflect current data.
         mod = conf.import_named_module(self.choice.GetStringSelection(),
-                                       machine.supported)
+                                       SUPPORTED_MACHINES_DICT)
         if ((mod is not None) and
             hasattr(mod, 'Stenotype') and
             hasattr(mod.Stenotype, 'CONFIG_CLASS')):
@@ -214,17 +247,16 @@ class DictionaryConfig(wx.Panel):
                                conf.DICTIONARY_FILE_OPTION)
         dict_file = os.path.join(conf.CONFIG_DIR, dict_file)
         dict_dir = os.path.split(dict_file)[0]
-        self.file_browser = filebrowse.FileBrowseButton(self,
-                                                     labelText=DICT_FILE_LABEL,
-                                                     fileMask='*' + \
-                                                        conf.JSON_EXTENSION,
-                                                     fileMode=wx.OPEN,
-                                                     dialogTitle= \
-                                                        DICT_FILE_DIALOG_TITLE,
-                                                     initialValue=dict_file,
-                                                     startDirectory=dict_dir)
-        sizer.Add(self.file_browser, border=UI_BORDER, flag=wx.ALL| wx.EXPAND)
-        
+        self.file_browser = filebrowse.FileBrowseButton(
+                                        self,
+                                        labelText=DICT_FILE_LABEL,
+                                        fileMask='*' + conf.JSON_EXTENSION,
+                                        fileMode=wx.OPEN,
+                                        dialogTitle=DICT_FILE_DIALOG_TITLE,
+                                        initialValue=dict_file,
+                                        startDirectory=dict_dir,
+                                        )
+        sizer.Add(self.file_browser, border=UI_BORDER, flag=wx.ALL | wx.EXPAND)
         self.SetSizer(sizer)
 
     def save(self):
@@ -232,7 +264,8 @@ class DictionaryConfig(wx.Panel):
         self.config.set(conf.DICTIONARY_CONFIG_SECTION,
                         conf.DICTIONARY_FILE_OPTION,
                         self.file_browser.GetValue())
-        
+
+
 class LoggingConfig(wx.Panel):
     """Logging configuration graphical user interface."""
     def __init__(self, config, parent):
@@ -252,15 +285,15 @@ class LoggingConfig(wx.Panel):
                               conf.LOG_FILE_OPTION)
         log_file = os.path.join(conf.CONFIG_DIR, log_file)
         log_dir = os.path.split(log_file)[0]
-        self.file_browser = filebrowse.FileBrowseButton(self,
-                                                     labelText=LOG_FILE_LABEL,
-                                                     fileMask='*' + \
-                                                        conf.LOG_EXTENSION,
-                                                     fileMode=wx.SAVE,
-                                                     dialogTitle= \
-                                                        LOG_FILE_DIALOG_TITLE,
-                                                     initialValue=log_file,
-                                                     startDirectory=log_dir)
+        self.file_browser = filebrowse.FileBrowseButton(
+                                            self,
+                                            labelText=LOG_FILE_LABEL,
+                                            fileMask='*' + conf.LOG_EXTENSION,
+                                            fileMode=wx.SAVE,
+                                            dialogTitle=LOG_FILE_DIALOG_TITLE,
+                                            initialValue=log_file,
+                                            startDirectory=log_dir,
+                                            )
         sizer.Add(self.file_browser, border=UI_BORDER, flag=wx.ALL | wx.EXPAND)
         self.log_strokes_checkbox = wx.CheckBox(self, label=LOG_STROKES_LABEL)
         stroke_logging = config.getboolean(conf.LOGGING_CONFIG_SECTION,
