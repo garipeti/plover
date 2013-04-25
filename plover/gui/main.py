@@ -115,6 +115,7 @@ class Frame(wx.Frame):
         # Dictionary Manager button.
         self.dm_button = wx.Button(self, label=self.DICTIONARY_MANAGER_BUTTON_LABEL)
         self.dm_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
+        self.dm = None
 
         # About button.
         self.about_button = wx.Button(self, label=self.ABOUT_BUTTON_LABEL)
@@ -204,10 +205,11 @@ class Frame(wx.Frame):
         return dialog
 
     def _show_dictionary_manager(self, event=None):
-        frame = dictionarymanager.dmFrame(self.steno_engine.store)
-        frame.SetSize((600, 400))
-        frame.Show()
-        return frame
+        if self.dm is None:
+            self.dm = dictionarymanager.dmFrame(self.steno_engine.store, self)
+            self.dm.SetSize((600, 400))
+        self.dm.Show()
+        return self.dm
 
     def _show_about_dialog(self, event=None):
         """Called when the About... button is clicked."""

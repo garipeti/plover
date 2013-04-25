@@ -7,8 +7,10 @@ Store class can read and write dictionaries
 from dictionarymanager.store.Dictionary import Dictionary
 from dictionarymanager.store.JsonLoader import JsonLoader
 from dictionarymanager.store.RtfLoader import RtfLoader
-import plover.config as conf
+from plover.steno import normalize_steno
+from plover.steno_dictionary import StenoDictionary
 import os
+import plover.config as conf
 
 class Store():
     
@@ -354,9 +356,9 @@ class Store():
         return None
     
     def getMerged(self):
-        ret = {}
+        ret = StenoDictionary()
         for i in range(len(self.dictionaries.values())-1, -1, -1):
             for k, v in self.dictionaries.values()[i].iteritems():
-                ret[k] = v
+                ret[normalize_steno(k)] = v
             
         return ret

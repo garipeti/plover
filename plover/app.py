@@ -23,7 +23,6 @@ from logging.handlers import RotatingFileHandler
 import plover.config as conf
 import plover.formatting as formatting
 import plover.oslayer.keyboardcontrol as keyboardcontrol
-import plover.steno as steno
 from plover.machine import SUPPORTED_DICT as SUPPORTED_MACHINES_DICT
 import plover.machine.base
 import plover.machine.sidewinder
@@ -86,13 +85,13 @@ def check_steno_config(config_params):
     # Load the dictionary. The dictionary path can be either
     # absolute or relative to the configuration directory.
     user_dictionary = None
-    try:
-        with open(dictionary_path, 'r') as f:
-            user_dictionary = steno_dictionary.load_dictionary(f.read())
-    except ValueError:
-        error = InvalidConfigurationError(
-            'The dictionary file contains incorrect json.')
-        errors.append(error)
+    #try:
+    #    with open(dictionary_path, 'r') as f:
+    #        user_dictionary = steno_dictionary.load_dictionary(f.read())
+    #except ValueError:
+    #    error = InvalidConfigurationError(
+    #        'The dictionary file contains incorrect json.')
+    #    errors.append(error)
 
     return errors, (machine_type, user_dictionary)
 
@@ -174,7 +173,7 @@ class StenoEngine:
         # absolute or relative to the configuration directory.
         self.store = Store(self.config)
         self.store.loadDictionaries()
-        self.dictionary = self.store.getMerged()
+        user_dictionary = self.store.getMerged()
 
         # Initialize the logger.
         log_file = join(conf.CONFIG_DIR,

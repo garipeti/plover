@@ -122,6 +122,9 @@ class dmFrame(wx.Dialog):
         dict_files = self.config.get(conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         for dict_file in filter(None, [x.strip() for x in dict_files.splitlines()]):
             self._readDictionary(os.path.join(conf.CONFIG_DIR, dict_file))
+            
+        if self.parent is not None:
+            self.grid._onTableChange(None)
     
     def _open(self, event=None):
         """ Open up File Dialog to load dictionary """
@@ -260,7 +263,7 @@ class dmFrame(wx.Dialog):
             EndBusyCursor()
         
     def _addRow(self, event=None):
-        """ Save dictionaries """
+        """ Add new translation to the grid """
         row = self.store.insertItem()
         self.grid.MakeCellVisible(row, 0)
     
