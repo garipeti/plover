@@ -237,7 +237,7 @@ class dmFrame(wx.Dialog):
         if self._keyTimer is not None:
             self._keyTimer.cancel()
         
-        self._keyTimer = Timer(0.5, self._callFilterChange)
+        self._keyTimer = Timer(0.1, self._callFilterChange)
         self._keyTimer.start()
     
     def _callFilterChange(self):
