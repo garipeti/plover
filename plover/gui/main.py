@@ -63,7 +63,9 @@ class Frame(wx.Frame):
     COMMAND_CONFIGURE = 'CONFIGURE'
     COMMAND_FOCUS = 'FOCUS'
     COMMAND_QUIT = 'QUIT'
-    COMMAND_DICTIONARYMANAGER = "DICTIONARY"
+    COMMAND_DM_OPEN = "DMOPEN"
+    COMMAND_DM_FILTERSTROKE = "DMFILTERSTROKE"
+    COMMAND_DM_FILTERTRANSLATION = "DMFILTERTRNASLATION"
 
     def __init__(self, config_file):
         wx.Frame.__init__(self, None,
@@ -161,8 +163,12 @@ class Frame(wx.Frame):
             wx.CallAfter(self.Iconize, False)
         elif command == self.COMMAND_QUIT:
             wx.CallAfter(self._quit)
-        elif command == self.COMMAND_DICTIONARYMANAGER:
+        elif command == self.COMMAND_DM_OPEN:
             wx.CallAfter(self._show_dictionary_manager)
+        elif command == self.COMMAND_DM_FILTERSTROKE:
+            wx.CallAfter(self._focus_on_dm_filter_stroke)
+        elif command == self.COMMAND_DM_FILTERTRANSLATION:
+            wx.CallAfter(self._focus_on_dm_filter_translation)
 
     def _update_status(self):
         if self.steno_engine:
@@ -210,6 +216,12 @@ class Frame(wx.Frame):
             self.dm.SetSize((600, 400))
         self.dm.Show()
         return self.dm
+    
+    def _focus_on_dm_filter_stroke(self, event=None):
+        self._show_dictionary_manager().focusOnFilterStroke()
+
+    def _focus_on_dm_filter_translation(self, event=None):
+        self._show_dictionary_manager().focusOnFilterTranslation()
 
     def _show_about_dialog(self, event=None):
         """Called when the About... button is clicked."""

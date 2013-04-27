@@ -52,7 +52,8 @@ class dmFrame(wx.Dialog):
                           title=dmFrame.TITLE,
                           pos=wx.DefaultPosition,
                           size=wx.DefaultSize,
-                          style=wx.wx.DEFAULT_DIALOG_STYLE)
+                          style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+                                 | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX)
         
         self.parent = parent
         
@@ -89,9 +90,9 @@ class dmFrame(wx.Dialog):
         # grid
         self.grid = dmGrid(self)
         self.grid.CreateGrid(self.store, 0, 3)
-        self.grid.SetColSize(0, 300)
+        self.grid.SetColSize(0, 250)
         self.grid.SetColSize(1, 300)
-        self.grid.SetColSize(2, 300)
+        self.grid.SetColSize(2, 150)
         
         # main Layout
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -279,4 +280,10 @@ class dmFrame(wx.Dialog):
             self.Hide()
         else:
             self.Destroy()
+            
+    def focusOnFilterStroke(self):
+        self.searchStrokeField.SetFocus()
+
+    def focusOnFilterTranslation(self):
+        self.searchTranslationField.SetFocus()
         

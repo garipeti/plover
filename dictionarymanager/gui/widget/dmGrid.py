@@ -6,6 +6,7 @@ from wx._misc import BeginBusyCursor, EndBusyCursor, EVT_TIMER
 from wx.grid import EVT_GRID_LABEL_LEFT_CLICK, EVT_GRID_CELL_CHANGE
 from wxPython.grid import wxGrid
 import wx
+from wx._core import EVT_MOUSEWHEEL
 
 
 class dmGrid(wxGrid):
@@ -35,15 +36,36 @@ class dmGrid(wxGrid):
     
         self._sortingColumn = 0
         self._sortingAsc = None
-        self._cellChanging = False
         
         self.Bind(EVT_GRID_LABEL_LEFT_CLICK, self._onLabelClick)
         self.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
+        self.Bind(EVT_MOUSEWHEEL, self._onMouseScroll)
         
         self._changeGridLabel()
         
         self.store.subscribe("tableChange", self._onTableChange)
         
+    def _onMouseScroll(self, evt):
+        if evt.ControlDown():
+            font = self.GetDefaultCellFont()
+            size = font.GetPointSize()
+            if evt.GetWheelRotation() > 0:
+                newSize = size + 1
+            elif size > 5:
+                newSize = size - 1
+            else:
+                return
+            font.SetPointSize(newSize)
+            
+            # TODO: is there another way which is fast enough?
+            dc = wx.ScreenDC()
+            dc.SetFont(font)
+            w, h, d, l = dc.GetFullTextExtent("|")
+            self.SetDefaultCellFont(font)
+            self.SetDefaultRowSize(h + d + l + 5)
+            
+            self._onTableChange(self.store)
+    
     def _onTableChange(self, store):
         self._table.ResetView(self)
     
