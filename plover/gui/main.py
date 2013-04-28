@@ -26,6 +26,7 @@ from plover import __url__
 from plover import __credits__
 from plover import __license__
 from dictionarymanager.gui import main as dictionarymanager
+from dictionarymanager.gui.widget.quickLoader import QuickLoader
 
 
 class PloverGUI(wx.App):
@@ -63,6 +64,7 @@ class Frame(wx.Frame):
     COMMAND_CONFIGURE = 'CONFIGURE'
     COMMAND_FOCUS = 'FOCUS'
     COMMAND_QUIT = 'QUIT'
+    COMMAND_DM_QUICKLOADER = "QUICKLOADER"
     COMMAND_DM_OPEN = "DMOPEN"
     COMMAND_DM_FILTERSTROKE = "DMFILTERSTROKE"
     COMMAND_DM_FILTERTRANSLATION = "DMFILTERTRNASLATION"
@@ -118,6 +120,7 @@ class Frame(wx.Frame):
         self.dm_button = wx.Button(self, label=self.DICTIONARY_MANAGER_BUTTON_LABEL)
         self.dm_button.Bind(wx.EVT_BUTTON, self._show_dictionary_manager)
         self.dm = None
+        self.quickLoader = None
 
         # About button.
         self.about_button = wx.Button(self, label=self.ABOUT_BUTTON_LABEL)
@@ -169,6 +172,8 @@ class Frame(wx.Frame):
             wx.CallAfter(self._focus_on_dm_filter_stroke)
         elif command == self.COMMAND_DM_FILTERTRANSLATION:
             wx.CallAfter(self._focus_on_dm_filter_translation)
+        elif command == self.COMMAND_DM_QUICKLOADER:
+            wx.CallAfter(self._show_quickloader)
 
     def _update_status(self):
         if self.steno_engine:
@@ -210,6 +215,12 @@ class Frame(wx.Frame):
         dialog.Show()
         return dialog
 
+    def _show_quickloader(self, event=None):
+        if self.quickLoader is None:
+            self.quickLoader = QuickLoader(self)
+        self.quickLoader.Show()
+        return self.quickLoader
+    
     def _show_dictionary_manager(self, event=None):
         if self.dm is None:
             self.dm = dictionarymanager.dmFrame(self.steno_engine.store, self)
