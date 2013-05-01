@@ -47,7 +47,8 @@ class Store():
                             "update": [], 
                             "progress": [], 
                             "dataChange": [], 
-                            "tableChange": []
+                            "tableChange": [],
+                            "dictionaryChange": []
                             }
         
     def getCount(self):
@@ -129,8 +130,8 @@ class Store():
             filters = self.filterFnList
         return not (False in [f(row) for f in filters])
     
-    def filter(self, newFilters):
-        if len(self.filters.keys()) == len(newFilters.keys()) and not False in [True if c in self.filters and self.filters[c] == p else False for c, p in newFilters.iteritems()]:
+    def filter(self, newFilters, force = False):
+        if not force and len(self.filters.keys()) == len(newFilters.keys()) and not False in [True if c in self.filters and self.filters[c] == p else False for c, p in newFilters.iteritems()]:
             return;
         
         self.filters = newFilters
@@ -157,22 +158,51 @@ class Store():
             
         self.fireEvent("tableChange", self)
         
-    def loadDictionaries(self):
-        dict_files = self.config.get(conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
-        for dict_file in filter(None, [x.strip() for x in dict_files.splitlines()]):
-            self.loadDictionary(os.path.join(conf.CONFIG_DIR, dict_file))
+    def addDictionaryToRecents(self, filename):
+        files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
+        files.add(filename)
+        conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION, files)
+        conf.save_config(self.config)
     
-    def loadDictionary(self, filename):
+    def addDictionaryToActives(self, filename):
+        # put in loaded list
+        files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        files.add(filename)
+        conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION, files)
+        # also put in recent list
+        self.addDictionaryToRecents(filename)
+    
+    def removeDictionaryFromActives(self, filename):
+        # remove from loaded list
+        files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        if filename in files:
+            files.remove(filename)
+            conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION, files)
+            conf.save_config(self.config)
+    
+    def loadDictionaries(self):
+        dict_files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        for dict_file in dict_files:
+            self.loadDictionary(os.path.join(conf.CONFIG_DIR, dict_file), True)
+    
+    def loadDictionary(self, filename, internal = False):
         """ Load dictionary from file """
         
         # we already loaded this dictionary
-        if filename in self.dictionaryFilenames:
+        if os.path.relpath(filename, conf.CONFIG_DIR) in self.dictionaryFilenames or \
+                os.path.abspath(filename) in self.dictionaryFilenames or \
+                filename in self.dictionaryFilenames:
             return
         
         loader = self.getLoader(filename)
         if loader is not None:
             dictionary = Dictionary()
             if dictionary.load(filename, loader):
+                if not internal:
+                    self.addDictionaryToActives(filename)
+                else:
+                    # just to make sure it is in recent list
+                    self.addDictionaryToRecents(filename)
                 self.dictionaries[filename] = dictionary
                 self.dictionaryFilenames.append(filename)
                 self.dictionaryNames.append(self.getDictionaryShortName(filename))
@@ -218,11 +248,13 @@ class Store():
             loader = self.getLoader(dest)
             if loader is not None:
                 self.dictionaries[filename].write(dest, loader)
+                self.fireEvent("dictionaryChange")
     
     def closeDictionary(self, index):
         """ Close dictionary """
         
         filename = self.dictionaryFilenames[index]
+        rowsIndex = len(self.rows)
         for i in reversed(range(len(self.data))):
             row = self.data[i]
             if filename in row[self.ATTR_DICTIONARIES]:
@@ -230,16 +262,16 @@ class Store():
                 if len(row[self.ATTR_DICTIONARIES]) == 0:
                     self.data.pop(i)
                     if self.filterFn(row):
-                        self.rows.remove(row)
+                        self.rows.pop(rowsIndex)
                     self.strokes.pop(self.getIdentifier(row[self.ATTR_STROKE], row[self.ATTR_TRANSLATION]), None)
-                #else:
-                # TODO: maybe here we should reposition the row
+            if self.filterFn(row):
+                rowsIndex -= 1
         self.dictionaries.pop(filename, None)
         self.dictionaryFilenames.remove(filename)
         self.dictionaryNames.remove(self.getDictionaryShortName(filename))
         if self.ATTR_DICTIONARIES in self.filters and filename in self.filters[self.ATTR_DICTIONARIES]:
             self.filters[self.ATTR_DICTIONARIES].remove(filename)
-        self.fireEvent("tableChange", self)
+            self.filter(self.filters, True)
     
     def toggleDictionaryVisibility(self, index):
         """ Show/Hide dictionary (apply dictionary filter) """
@@ -284,7 +316,7 @@ class Store():
         self.strokes[self.getIdentifier(stroke, item[self.ATTR_TRANSLATION])] = self.strokes.pop(self.getIdentifier(orig, item[self.ATTR_TRANSLATION]))
         for filename in item[self.ATTR_DICTIONARIES]:
             self.dictionaries[filename].change(orig, item[self.ATTR_TRANSLATION], item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])
-            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename), self.dictionaries[filename].hasChanges())
         
     def changeTranslation(self, row, translation):
         """ Change Translation in item """
@@ -296,7 +328,7 @@ class Store():
         self.strokes[self.getIdentifier(item[self.ATTR_STROKE], translation)] = self.strokes.pop(self.getIdentifier(item[self.ATTR_STROKE], orig))
         for filename in item[self.ATTR_DICTIONARIES]:
             self.dictionaries[filename].change(item[self.ATTR_STROKE], orig, item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])
-            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename), self.dictionaries[filename].hasChanges())
         
     def changeDictionaries(self, row, dictionaries):
         """ Change dictionary list for the item """
@@ -339,11 +371,11 @@ class Store():
         removed = list(set(before) - set(dictionaries))
         for filename in removed:
             self.dictionaries[filename].remove(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])
-            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename), self.dictionaries[filename].hasChanges())
         added = list(set(dictionaries) - set(before))
         for filename in added:
             self.dictionaries[filename].insert(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])
-            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename))
+            self.fireEvent("dataChange", self.getDictionaryIndexByName(filename), self.dictionaries[filename].hasChanges())
         
     def getDictionaryIndexByName(self, name):
         if name in self.dictionaryFilenames:
@@ -356,9 +388,8 @@ class Store():
         return None
     
     def getMerged(self):
-        ret = StenoDictionary()
-        for i in range(len(self.dictionaries.values())-1, -1, -1):
-            for k, v in self.dictionaries.values()[i].iteritems():
-                ret[normalize_steno(k)] = v
-            
-        return ret
+        merged = StenoDictionary()
+        items = self.dictionaries.values()
+        for i in range(len(items)-1, -1, -1):
+            merged.update((normalize_steno(k), items[i][k]) for k in items[i])
+        return merged

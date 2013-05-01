@@ -67,7 +67,7 @@ class Frame(wx.Frame):
     COMMAND_DM_QUICKLOADER = "QUICKLOADER"
     COMMAND_DM_OPEN = "DMOPEN"
     COMMAND_DM_FILTERSTROKE = "DMFILTERSTROKE"
-    COMMAND_DM_FILTERTRANSLATION = "DMFILTERTRNASLATION"
+    COMMAND_DM_FILTERTRANSLATION = "DMFILTERTRANSLATION"
 
     def __init__(self, config_file):
         wx.Frame.__init__(self, None,
@@ -224,15 +224,17 @@ class Frame(wx.Frame):
     def _show_dictionary_manager(self, event=None):
         if self.dm is None:
             self.dm = dictionarymanager.dmFrame(self.steno_engine.store, self)
-            self.dm.SetSize((600, 400))
         self.dm.Show()
+        self.dm.Raise()
+        self.dm.Iconize(False)
         return self.dm
-    
     def _focus_on_dm_filter_stroke(self, event=None):
-        self._show_dictionary_manager().focusOnFilterStroke()
+        self._show_dictionary_manager()
+        self.dm.focusOnFilterStroke()
 
     def _focus_on_dm_filter_translation(self, event=None):
-        self._show_dictionary_manager().focusOnFilterTranslation()
+        self._show_dictionary_manager()
+        self.dm.focusOnFilterTranslation()
 
     def _show_about_dialog(self, event=None):
         """Called when the About... button is clicked."""

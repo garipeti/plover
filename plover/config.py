@@ -144,7 +144,6 @@ def verify_config(config):
     and adds default values for all parameters.
 
     """
-    config_file = CONFIG_FILE
     # Verify options exist.
     for section, option, default in (
       (LOGGING_CONFIG_SECTION, LOG_FILE_OPTION,
@@ -164,8 +163,11 @@ def verify_config(config):
             config.add_section(section)
         if not config.has_option(section, option):
             config.set(section, option, default)
+    save_config(config)
 
+def save_config(config):
     # Write the file to disk.
+    config_file = CONFIG_FILE
     with open(config_file, 'w') as f:
         config.write(f)
 
@@ -242,3 +244,19 @@ def set_serial_params(serial_port, section, config):
         config.add_section(section)
     for opt in SERIAL_ALL_OPTIONS:
         config.set(section, opt, serial_port.__getattribute__(opt))
+
+def get_option_as_list(config, section, option):
+    if config.has_option(section, option):
+        conf = config.get(section, option)
+        return filter(None, [x.strip() for x in conf.splitlines()])
+    else:
+        return []
+
+def get_option_as_set(config, section, option):
+    return set(get_option_as_list(config, section, option))
+    
+def set_list_as_option(config, section, option, values):
+    if not config.has_section(section):
+        config.add_section(section)
+    config.set(section, option, "\n".join(values))
+    

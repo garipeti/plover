@@ -8,6 +8,7 @@ from dictionarymanager.gui.widget.dmGrid import dmGrid
 from dictionarymanager.store import Store
 from threading import Timer
 from wx._misc import BeginBusyCursor, EndBusyCursor
+from wxPython._core import wxSize
 import os
 import plover.config as conf
 import wx
@@ -21,7 +22,6 @@ class DictionaryManagerGUI(wx.App):
     def OnInit(self):
         """Called just before the application starts."""
         frame = dmFrame()
-        frame.SetSize((600, 400))
         frame.Show()
         self.SetTopWindow(frame)
         return True
@@ -51,7 +51,7 @@ class dmFrame(wx.Dialog):
         wx.Dialog.__init__(self, parent,
                           title=dmFrame.TITLE,
                           pos=wx.DefaultPosition,
-                          size=wx.DefaultSize,
+                          size=(800,600),
                           style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
                                  | wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX)
         
@@ -116,7 +116,7 @@ class dmFrame(wx.Dialog):
         button_sizer.Add(close_button)
         self.sizer.Add(button_sizer, 0, flag=wx.ALL | wx.ALIGN_RIGHT, border=4)
         
-        self.SetSizerAndFit(self.sizer)
+        self.SetSizer(self.sizer)
         self.Bind(wx.EVT_CLOSE, self._quit)
         
         # load dictionaries from config
@@ -198,10 +198,13 @@ class dmFrame(wx.Dialog):
         finally:
             EndBusyCursor()
 
-    def _onDictionaryChange(self, index):
+    def _onDictionaryChange(self, index, hasChanges):
         items = self.loadedSizer.GetChildren()
         if len(items) > index:
-            items[index].GetSizer().Show(self.POSITION_SAVE)
+            if hasChanges:
+                items[index].GetSizer().Show(self.POSITION_SAVE)
+            else:
+                items[index].GetSizer().Hide(self.POSITION_SAVE)
             self.loadedSizer.Layout()
     
     def _saveDictionary(self, evt):
@@ -266,7 +269,12 @@ class dmFrame(wx.Dialog):
     def _addRow(self, event=None):
         """ Add new translation to the grid """
         row = self.store.insertItem()
+        if len(self.loadedSizer.GetChildren()) == 1:
+            self.store.setDictionariesForRow(row, [0])
         self.grid.MakeCellVisible(row, 0)
+        self.grid.ClearSelection()
+        self.grid.SetGridCursor(row, 0)
+        self.grid.EnableCellEditControl()
     
     def _save(self, event=None):
         """ Save dictionaries """
@@ -280,10 +288,9 @@ class dmFrame(wx.Dialog):
             self.Hide()
         else:
             self.Destroy()
-            
+
     def focusOnFilterStroke(self):
         self.searchStrokeField.SetFocus()
 
     def focusOnFilterTranslation(self):
         self.searchTranslationField.SetFocus()
-        

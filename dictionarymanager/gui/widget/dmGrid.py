@@ -47,24 +47,27 @@ class dmGrid(wxGrid):
         
     def _onMouseScroll(self, evt):
         if evt.ControlDown():
-            font = self.GetDefaultCellFont()
-            size = font.GetPointSize()
-            if evt.GetWheelRotation() > 0:
-                newSize = size + 1
-            elif size > 5:
-                newSize = size - 1
-            else:
-                return
-            font.SetPointSize(newSize)
-            
-            # TODO: is there another way which is fast enough?
-            dc = wx.ScreenDC()
-            dc.SetFont(font)
-            w, h, d, l = dc.GetFullTextExtent("|")
-            self.SetDefaultCellFont(font)
-            self.SetDefaultRowSize(h + d + l + 5)
-            
-            self._onTableChange(self.store)
+            self.changeZoomLevel(evt.GetWheelRotation())
+
+    def changeZoomLevel(self, direction):
+        font = self.GetDefaultCellFont()
+        size = font.GetPointSize()
+        if direction > 0:
+            newSize = size + 1
+        elif size > 5:
+            newSize = size - 1
+        else:
+            return
+        font.SetPointSize(newSize)
+        
+        # TODO: is there another way which is fast enough?
+        dc = wx.ScreenDC()
+        dc.SetFont(font)
+        w, h, d, l = dc.GetFullTextExtent("|")
+        self.SetDefaultCellFont(font)
+        self.SetDefaultRowSize(h + d + l + 5)
+        
+        self._onTableChange(self.store)
     
     def _onTableChange(self, store):
         self._table.ResetView(self)

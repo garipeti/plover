@@ -64,36 +64,7 @@ def check_steno_config(config_params):
             (conf.MACHINE_TYPE_OPTION, machine_type))
         errors.append(error)
 
-    # Load the dictionary. The dictionary path can be either
-    # absolute or relative to the configuration directory.
-    dictionary_filename = config_params.get(conf.DICTIONARY_CONFIG_SECTION,
-                                            conf.DICTIONARY_FILE_OPTION)
-    dictionary_path = join(conf.CONFIG_DIR, dictionary_filename)
-    if not isfile(dictionary_path):
-        error = InvalidConfigurationError(
-            'Invalid configuration value for %s: %s' %
-            (conf.DICTIONARY_FILE_OPTION, dictionary_path))
-        errors.append(error)
-
-    dictionary_extension = splitext(dictionary_path)[1]
-    if dictionary_extension != conf.JSON_EXTENSION:
-        error = InvalidConfigurationError(
-            'The value of %s must end with %s.' %
-            (conf.DICTIONARY_FILE_OPTION, conf.JSON_EXTENSION))
-        errors.append(error)
-
-    # Load the dictionary. The dictionary path can be either
-    # absolute or relative to the configuration directory.
-    user_dictionary = None
-    #try:
-    #    with open(dictionary_path, 'r') as f:
-    #        user_dictionary = steno_dictionary.load_dictionary(f.read())
-    #except ValueError:
-    #    error = InvalidConfigurationError(
-    #        'The dictionary file contains incorrect json.')
-    #    errors.append(error)
-
-    return errors, (machine_type, user_dictionary)
+    return errors, machine_type
 
 
 class StenoEngine:
@@ -148,13 +119,11 @@ class StenoEngine:
 
         # Check and use configuration
         self.config = conf.get_config()
-        config_errors, config_values = check_steno_config(self.config)
+        config_errors, machine_type = check_steno_config(self.config)
         for error in config_errors:
             # This will raise one of the configuration errors.
             raise error
             
-        machine_type, user_dictionary = config_values
-
         # Set the machine module and any initialization variables.
         self.machine_module = conf.import_named_module(
                                                 machine_type,
@@ -174,7 +143,8 @@ class StenoEngine:
         self.store = Store(self.config)
         self.store.loadDictionaries()
         user_dictionary = self.store.getMerged()
-
+        self.store.subscribe("dictionaryChange", self._on_dictionary_change)
+        
         # Initialize the logger.
         log_file = join(conf.CONFIG_DIR,
                         self.config.get(conf.LOGGING_CONFIG_SECTION,
@@ -227,6 +197,9 @@ class StenoEngine:
         # Start the machine monitoring for steno strokes.
         self.machine.start_capture()
 
+    def _on_dictionary_change(self):
+        self.translator.set_dictionary(self.store.getMerged())
+        
     def set_is_running(self, value):
         self.is_running = value
         if self.is_running:
