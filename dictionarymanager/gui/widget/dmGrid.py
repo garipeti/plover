@@ -48,6 +48,8 @@ class dmGrid(wxGrid):
     def _onMouseScroll(self, evt):
         if evt.ControlDown():
             self.changeZoomLevel(evt.GetWheelRotation())
+        else:
+            evt.Skip()
 
     def changeZoomLevel(self, direction):
         font = self.GetDefaultCellFont()
