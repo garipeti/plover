@@ -166,43 +166,40 @@ class Store():
     
     def addDictionaryToActives(self, filename):
         # put in loaded list
-        files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
-        files.add(filename)
+        files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        if filename not in files:
+            files.append(filename)
         conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION, files)
         # also put in recent list
         self.addDictionaryToRecents(filename)
     
     def removeDictionaryFromActives(self, filename):
         # remove from loaded list
-        files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         if filename in files:
             files.remove(filename)
             conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION, files)
             conf.save_config(self.config)
     
     def loadDictionaries(self):
-        dict_files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+        dict_files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         for dict_file in dict_files:
-            self.loadDictionary(os.path.join(conf.CONFIG_DIR, dict_file), True)
+            self.loadDictionary(dict_file)
     
-    def loadDictionary(self, filename, internal = False):
+    def loadDictionary(self, filename):
         """ Load dictionary from file """
         
-        # we already loaded this dictionary
-        if os.path.relpath(filename, conf.CONFIG_DIR) in self.dictionaryFilenames or \
-                os.path.abspath(filename) in self.dictionaryFilenames or \
-                filename in self.dictionaryFilenames:
-            return
+        path = os.path.join(conf.CONFIG_DIR, filename) if filename[0] != os.pathsep else filename 
         
-        loader = self.getLoader(filename)
+        # we already loaded this dictionary
+        if filename in self.dictionaryFilenames or path in self.dictionaryFilenames:
+            raise ValueError('Dictionary %s already loaded.' % filename)
+        
+        loader = self.getLoader(path)
         if loader is not None:
             dictionary = Dictionary()
-            if dictionary.load(filename, loader):
-                if not internal:
-                    self.addDictionaryToActives(filename)
-                else:
-                    # just to make sure it is in recent list
-                    self.addDictionaryToRecents(filename)
+            if dictionary.load(path, loader):
+                self.addDictionaryToActives(filename)
                 self.dictionaries[filename] = dictionary
                 self.dictionaryFilenames.append(filename)
                 self.dictionaryNames.append(self.getDictionaryShortName(filename))
@@ -231,6 +228,9 @@ class Store():
                         self.data.append(item)
                     
                 self.fireEvent("tableChange", self)
+                return True
+        else:
+            raise ValueError('Unknown dictionary format %s.' % filename)
 
     def saveDictionaries(self):
         """ Save dictionaries to files """
@@ -272,6 +272,8 @@ class Store():
         if self.ATTR_DICTIONARIES in self.filters and filename in self.filters[self.ATTR_DICTIONARIES]:
             self.filters[self.ATTR_DICTIONARIES].remove(filename)
             self.filter(self.filters, True)
+        self.removeDictionaryFromActives(filename)
+        self.fireEvent("tableChange", self)
     
     def toggleDictionaryVisibility(self, index):
         """ Show/Hide dictionary (apply dictionary filter) """
@@ -344,6 +346,9 @@ class Store():
     
     def getDictionaryNames(self):
         return self.dictionaryNames
+    
+    def getDictionaryFilenames(self):
+        return self.dictionaryFilenames
     
     def getDictionaryShortName(self, path):
         return path.split("/")[-1]

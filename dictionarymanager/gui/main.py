@@ -8,7 +8,7 @@ from dictionarymanager.gui.widget.dmGrid import dmGrid
 from dictionarymanager.store import Store
 from threading import Timer
 from wx._misc import BeginBusyCursor, EndBusyCursor
-from wxPython._core import wxSize
+from wxPython._core import wxSize, wxOK
 import os
 import plover.config as conf
 import wx
@@ -120,9 +120,13 @@ class dmFrame(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self._quit)
         
         # load dictionaries from config
-        dict_files = self.config.get(conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
-        for dict_file in filter(None, [x.strip() for x in dict_files.splitlines()]):
-            self._readDictionary(os.path.join(conf.CONFIG_DIR, dict_file))
+        if self.parent is None:
+            dict_files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
+            for dict_file in dict_files:
+                self._readDictionary(dict_file)
+        else:
+            for dict_file in self.store.getDictionaryFilenames():
+                self._addDictionaryToSidebar(dict_file)
             
         if self.parent is not None:
             self.grid._onTableChange(None)
@@ -132,11 +136,12 @@ class dmFrame(wx.Dialog):
         
         dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.FD_OPEN)
         if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetFilename()
-            dirname = dlg.GetDirectory()
+            fullpath = dlg.GetPath()
+            dirname, filename = os.path.split(fullpath)
+            if dirname != conf.CONFIG_DIR:
+                filename = fullpath
             dlg.Destroy()
-            
-            self._readDictionary(os.path.join(dirname, filename))
+            self._readDictionary(filename)
         else:
             dlg.Destroy()
     
@@ -163,8 +168,13 @@ class dmFrame(wx.Dialog):
             dlg.Destroy()
     
     def _readDictionary(self, filename):
-        self.store.loadDictionary(filename)
-        
+        try:
+            self.store.loadDictionary(filename)
+            self._addDictionaryToSidebar(filename)
+        except ValueError as e:
+            self._showErrorMessage(e)
+    
+    def _addDictionaryToSidebar(self, filename):
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
                 flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
@@ -181,6 +191,11 @@ class dmFrame(wx.Dialog):
         
         self.loadedSizer.Add(box)
         self.loadedSizer.Layout()
+    
+    def _showErrorMessage(self, error):
+        dlg = wx.MessageDialog(self, str(error), style=wxOK)
+        dlg.ShowModal()
+        dlg.Destroy()
     
     def _closeDictionary(self, evt):
         btn = evt.GetEventObject()
