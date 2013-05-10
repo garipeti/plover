@@ -8,7 +8,7 @@ from dictionarymanager.gui.widget.dmGrid import dmGrid
 from dictionarymanager.store import Store
 from threading import Timer
 from wx._misc import BeginBusyCursor, EndBusyCursor
-from wxPython._core import wxSize, wxOK
+from wxPython._core import wxSize, wxOK, WXK_ESCAPE
 import os
 import plover.config as conf
 import wx
@@ -118,6 +118,7 @@ class dmFrame(wx.Dialog):
         
         self.SetSizer(self.sizer)
         self.Bind(wx.EVT_CLOSE, self._quit)
+        self.Bind(wx.EVT_KEY_DOWN, self._keydown)
         
         # load dictionaries from config
         if self.parent is None:
@@ -303,6 +304,13 @@ class dmFrame(wx.Dialog):
             self.Hide()
         else:
             self.Destroy()
+
+    def _keydown(self, event):
+        """ Key down event handler """
+        if self.parent is not None and event.GetKeyCode() == WXK_ESCAPE:
+            self.Hide()
+        else:
+            event.Skip()
 
     def focusOnFilterStroke(self):
         self.searchStrokeField.SetFocus()
