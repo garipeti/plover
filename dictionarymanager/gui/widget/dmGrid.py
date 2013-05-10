@@ -81,7 +81,7 @@ class dmGrid(wxGrid):
             if self._sortingAsc == False and evt.Col == self._sortingColumn:
                 self._sortingAsc = None
                 self._changeGridLabel()
-                self.store.resetOrder()
+                self.store.sort()
             else:
                 if self._sortingAsc is None:
                     self._sortingAsc = False

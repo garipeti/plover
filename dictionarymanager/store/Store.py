@@ -39,6 +39,7 @@ class Store():
 
         #sorting
         self.cmpFn = None
+        self.sortColumn = None
         
         # subscribers
         self.subscribers = {
@@ -65,41 +66,67 @@ class Store():
         for callback in self.subscribers[event]:
             callback(*args, **kwargs)
             
-    def sort(self, column, reverse):
-        if reverse:
-            self.cmpFn = lambda a, b: 0 if a[column] == b[column] else 1 if a[column] > b[column] else -1
-        else:
-            self.cmpFn = lambda a, b: 0 if a[column] == b[column] else 1 if a[column] < b[column] else -1
+    def sort(self, column = None, reverse = None):
+        self.sortColumn = column
+        if column is not None:
+            if reverse:
+                self.cmpFn = lambda a, b: 0 if a[column] == b[column] else 1 if a[column] > b[column] else -1
+            else:
+                self.cmpFn = lambda a, b: 0 if a[column] == b[column] else 1 if a[column] < b[column] else -1
         self._sort()
     
     def reSort(self):
         if self.cmpFn is not None:
             self._sort()
     
-    def resetOrder(self):
-        self.cmpFn = None
+    def sortByFilter(self):
+        # if there are filters defined it sorts by the weight of the match
+        if self.sortColumn is None:
+            if len(self.filterFnList) > 0:
+                f = lambda pattern, column: (
+                        lambda a: (
+                            5 if pattern == a[column] else
+                                0 if pattern not in a[column] else
+                                    4 if a[column].index(pattern) == 0 else 
+                                        1
+                        )
+                    )
+                t = []
+                for c, p in self.filters.iteritems():
+                    if len(p) > 0:
+                        if c != self.ATTR_DICTIONARIES:
+                            t.append(f(p, c))
+                if len(t) > 0:
+                    self.cmpFn = (lambda l: lambda a, b: cmp(sum([x(b) for x in l]), sum([x(a) for x in l])))(t)
+                
+    def _resetOrder(self):
+        self.sortColumn = None
         identifiers = {}
-        rows = []
+        self.rows = []
         for filename in self.dictionaryFilenames:
             for stroke, translation in self.dictionaries[filename].iteritems():
                 identifier = self.getIdentifier(stroke, translation)
-                if identifier not in identifiers:
+                row = self.strokes.get(identifier)
+                if identifier not in identifiers and self.filterFn(row):
                     identifiers[identifier] = True
-                    rows.append(self.strokes.get(identifier))
-        self.data = rows
-        self._applyFilter()
+                    self.rows.append(row)
+        self.fireEvent("tableChange", self)
     
     def _sort(self):
-        if self.cmpFn is not None:
-            self.data.sort(cmp=self.cmpFn)
-            self._applyFilter()
+        if self.sortColumn is not None:
+            self.rows.sort(cmp=self.cmpFn)
+        elif len(self.filterFnList) > 0:
+            self.sortByFilter()
+            self.rows.sort(cmp=self.cmpFn)
         else:
-            self.resetOrder()
+            self._resetOrder()
+            print("reset")
+        self.fireEvent("tableChange", self)
         
     def _insertItem(self, item):
         self.strokes[self.getIdentifier(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])] = item
         self.rows.insert(0, item)
-        self.data.insert(0, item)
+        self.data.append(item)
         self.fireEvent("tableChange", self)
         return 0
         
@@ -155,8 +182,8 @@ class Store():
             item = self.data[index]
             if self.filterFn(item):
                 self.rows.append(item)
-            
-        self.fireEvent("tableChange", self)
+        
+        self._sort()
         
     def addDictionaryToRecents(self, filename):
         files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
@@ -254,7 +281,6 @@ class Store():
         """ Close dictionary """
         
         filename = self.dictionaryFilenames[index]
-        rowsIndex = len(self.rows)
         for i in reversed(range(len(self.data))):
             row = self.data[i]
             if filename in row[self.ATTR_DICTIONARIES]:
@@ -262,10 +288,8 @@ class Store():
                 if len(row[self.ATTR_DICTIONARIES]) == 0:
                     self.data.pop(i)
                     if self.filterFn(row):
-                        self.rows.pop(rowsIndex)
+                        self.rows.remove(row)
                     self.strokes.pop(self.getIdentifier(row[self.ATTR_STROKE], row[self.ATTR_TRANSLATION]), None)
-            if self.filterFn(row):
-                rowsIndex -= 1
         self.dictionaries.pop(filename, None)
         self.dictionaryFilenames.remove(filename)
         self.dictionaryNames.remove(self.getDictionaryShortName(filename))
