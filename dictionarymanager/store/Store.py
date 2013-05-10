@@ -120,7 +120,6 @@ class Store():
             self.rows.sort(cmp=self.cmpFn)
         else:
             self._resetOrder()
-            print("reset")
         self.fireEvent("tableChange", self)
         
     def _insertItem(self, item):
