@@ -44,15 +44,17 @@ class QuickLoader(wx.Dialog):
         self.SetSizer(self.sizer)
         
     def _stenoEngineCallback(self, undo, do, prev):
-        for (key, value) in self.dictList:
-            if key == do[0].english:
-                try:
-                    self.stenoEngine.store.loadDictionary(value)
-                    self.Hide()
-                except ValueError, e:
-                    self.error = e
-                    wx.CallAfter(self._showError)
-                break
+        if len(do) > 0:
+            translation = do[0].english
+            for (key, value) in self.dictList:
+                if translation == key:
+                    try:
+                        self.stenoEngine.store.loadDictionary(value)
+                        self.Hide()
+                    except ValueError, e:
+                        self.error = e
+                        wx.CallAfter(self._showError)
+                    break
             
     
     def Show(self):
