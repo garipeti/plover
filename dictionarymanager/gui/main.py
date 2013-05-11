@@ -4,6 +4,7 @@ Plover Dictionary Manager
 
 """
 
+from dictionarymanager.gui.widget.dmDictionaryMenu import dmDictionaryMenu
 from dictionarymanager.gui.widget.dmGrid import dmGrid
 from dictionarymanager.store import Store
 from threading import Timer
@@ -42,9 +43,9 @@ class dmFrame(wx.Dialog):
     LOADING_DICTIONARY = "Loading dictionary "
     
     POSITION_LABEL = 0
-    POSITION_SAVE = 1
-    POSITION_VISIBILITY = 2
-    POSITION_CLOSE = 3
+    POSITION_MENU = 1
+    
+    MENU_ICON_FILE = "gear.png"
     
     def __init__(self, store = None, parent = None):
         
@@ -73,6 +74,9 @@ class dmFrame(wx.Dialog):
         loadedHolder.AddSpacer(5)
         self.loadedSizer = wx.BoxSizer(wx.HORIZONTAL)
         loadedHolder.Add(self.loadedSizer, 1, wx.EXPAND)
+        self.dictionaryMenus = []
+        menuIconPath = os.path.join(conf.ASSETS_DIR, self.MENU_ICON_FILE)
+        self.menuIcon = wx.Image(menuIconPath, wx.BITMAP_TYPE_ANY).ConvertToBitmap()
         
         # search fields
         self.searchStrokeField = wx.TextCtrl(self, wx.ID_ANY, value="")
@@ -146,27 +150,25 @@ class dmFrame(wx.Dialog):
         else:
             dlg.Destroy()
     
-    def _saveAS(self, evt=None):
+    def saveAsDictionary(self, filename):
         """ Open up File Dialog to save dictionary """
-        # TODO: finish
-        dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetFilename()
-            dirname = dlg.GetDirectory()
-            dlg.Destroy()
-            
-            btn = evt.GetEventObject()
-            items = self.loadedSizer.GetChildren()
-            for i, item in enumerate(items):
-                if item.GetSizer().GetChildren()[self.POSITION_SAVE].GetWindow() == btn:
-                    BeginBusyCursor()
-                    try:
-                        self.store.saveDictionary(i, os.path.join(dirname, filename))
-                    finally:
-                        EndBusyCursor()
-            
-        else:
-            dlg.Destroy()
+        
+        i = self.store.getDictionaryIndexByName(filename)
+        if i is not None:
+            dlg = wx.FileDialog(self, self.CHOOSE_DICTIONARY, ".", "", "*.*", wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+            if dlg.ShowModal() == wx.ID_OK:
+                filename = dlg.GetFilename()
+                dirname = dlg.GetDirectory()
+                dlg.Destroy()
+                
+                BeginBusyCursor()
+                try:
+                    self.store.saveDictionary(i, os.path.join(dirname, filename))
+                finally:
+                    EndBusyCursor()
+                
+            else:
+                dlg.Destroy()
     
     def _readDictionary(self, filename):
         try:
@@ -179,78 +181,72 @@ class dmFrame(wx.Dialog):
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
                 flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
-        save = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_FILE_SAVE))
-        save.Bind(wx.EVT_BUTTON, self._saveDictionary)
-        box.Add(save)
-        box.Hide(save)
-        visibility = wx.Button(self, wx.ID_ANY, self.VISIBILITY_BUTTON_HIDE)
-        visibility.Bind(wx.EVT_BUTTON, self._toggleDictionaryVisibility)
-        box.Add(visibility)
-        remove = wx.BitmapButton(self, wx.ID_ANY, wx.ArtProvider_GetBitmap(wx.ART_CROSS_MARK))
-        remove.Bind(wx.EVT_BUTTON, self._closeDictionary)
-        box.Add(remove)
+        
+        menu = dmDictionaryMenu(filename, 
+                                save_callback = self.saveDictionary,
+                                save_as_callback = self.saveAsDictionary,
+                                close_callback = self.closeDictionary,
+                                hide_callback = self.toggleDictionaryVisibility)
+        menu.setSaveState(False)
+        self.dictionaryMenus.append(menu)
+        
+        menuButton = wx.BitmapButton(self, wx.ID_ANY, self.menuIcon)
+        menuButton.Bind(wx.EVT_BUTTON, self._toggleDictionaryMenu)
+        box.Add(menuButton)
         
         self.loadedSizer.Add(box)
         self.loadedSizer.Layout()
+    
+    def _toggleDictionaryMenu(self, evt):
+        btn = evt.GetEventObject()
+        pos = btn.GetPosition()
+        pos.Set(pos.Get()[0], pos.Get()[1] + btn.GetSize().GetHeight())
+        items = self.loadedSizer.GetChildren()
+        for i, item in enumerate(items):
+            if item.GetSizer().GetChildren()[self.POSITION_MENU].GetWindow() == btn:
+                self.PopupMenu(self.dictionaryMenus[i], pos)
     
     def _showErrorMessage(self, error):
         dlg = wx.MessageDialog(self, str(error), style=wxOK)
         dlg.ShowModal()
         dlg.Destroy()
     
-    def _closeDictionary(self, evt):
-        btn = evt.GetEventObject()
-        BeginBusyCursor()
-        self.grid.MakeCellVisible(0, 0)
-        try:
-            items = self.loadedSizer.GetChildren()
-            for i, item in enumerate(items):
-                if item.GetSizer().GetChildren()[self.POSITION_CLOSE].GetWindow() == btn:
-                    self.loadedSizer.Hide(i)
-                    self.loadedSizer.Remove(i)
-                    self.sizer.Layout()
-                    self.store.closeDictionary(i)
-                    break
-        finally:
-            EndBusyCursor()
+    def closeDictionary(self, filename):
+        i = self.store.getDictionaryIndexByName(filename)
+        if i is not None:
+            self.loadedSizer.Hide(i)
+            self.loadedSizer.Remove(i)
+            self.sizer.Layout()
+            self.store.closeDictionary(i)
 
     def _onDictionaryChange(self, index, hasChanges):
         items = self.loadedSizer.GetChildren()
         if len(items) > index:
-            if hasChanges:
-                items[index].GetSizer().Show(self.POSITION_SAVE)
-            else:
-                items[index].GetSizer().Hide(self.POSITION_SAVE)
-            self.loadedSizer.Layout()
+            self.dictionaryMenus[index].setSaveState(hasChanges)
     
-    def _saveDictionary(self, evt):
-        btn = evt.GetEventObject()
-        items = self.loadedSizer.GetChildren()
-        for i, item in enumerate(items):
-            if item.GetSizer().GetChildren()[self.POSITION_SAVE].GetWindow() == btn:
-                item.GetSizer().Hide(btn)
-                self.loadedSizer.Layout()
-                BeginBusyCursor()
-                try:
-                    self.store.saveDictionary(i)
-                finally:
-                    EndBusyCursor()
-                break
+    def saveDictionary(self, filename):
+        i = self.store.getDictionaryIndexByName(filename)
+        if i is not None:
+            BeginBusyCursor()
+            try:
+                self.store.saveDictionary(i)
+                self.dictionaryMenus[i].setSaveState(False)
+            finally:
+                EndBusyCursor()
                 
-    def _toggleDictionaryVisibility(self, evt):
-        btn = evt.GetEventObject()
-        items = self.loadedSizer.GetChildren()
-        for i, item in enumerate(items):
-            if item.GetSizer().GetChildren()[self.POSITION_VISIBILITY].GetWindow() == btn:
-                btn.SetLabel(self.VISIBILITY_BUTTON_SHOW if btn.GetLabel() == self.VISIBILITY_BUTTON_HIDE else self.VISIBILITY_BUTTON_HIDE)
-                BeginBusyCursor()
-                self.grid.MakeCellVisible(0, 0)
-                try:
-                    self.store.toggleDictionaryVisibility(i)
-                finally:
-                    EndBusyCursor()
-                break
-    
+    def toggleDictionaryVisibility(self, filename):
+        print(filename)
+        i = self.store.getDictionaryIndexByName(filename)
+        print(i)
+        if i is not None:
+            BeginBusyCursor()
+            self.grid.MakeCellVisible(0, 0)
+            try:
+                self.dictionaryMenus[i].toggleVisibility()
+                self.store.toggleDictionaryVisibility(i)
+            finally:
+                EndBusyCursor()
+        
     def _onFilterKeyUp(self, evt):
         """ KeyUp event on search fields """
         
