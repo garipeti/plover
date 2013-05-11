@@ -9,6 +9,7 @@ from dictionarymanager.store.JsonLoader import JsonLoader
 from dictionarymanager.store.RtfLoader import RtfLoader
 from plover.steno import normalize_steno
 from plover.steno_dictionary import StenoDictionary
+import collections
 import os
 import plover.config as conf
 
@@ -24,7 +25,7 @@ class Store():
                         "json": JsonLoader(),
                         "rtf": RtfLoader()
                         }
-        self.dictionaries = {}
+        self.dictionaries = collections.OrderedDict()
         self.dictionaryNames = []
         self.dictionaryFilenames = []
         self.strokes = {}
@@ -286,9 +287,11 @@ class Store():
                 row[self.ATTR_DICTIONARIES].remove(filename)
                 if len(row[self.ATTR_DICTIONARIES]) == 0:
                     self.data.pop(i)
-                    if self.filterFn(row):
-                        self.rows.remove(row)
                     self.strokes.pop(self.getIdentifier(row[self.ATTR_STROKE], row[self.ATTR_TRANSLATION]), None)
+        # doing this in a separate loop because rows are not in the same order as data
+        for i in reversed(range(len(self.rows))):
+            if len(self.rows[i][self.ATTR_DICTIONARIES]) == 0:
+                self.rows.pop(i)
         self.dictionaries.pop(filename, None)
         self.dictionaryFilenames.remove(filename)
         self.dictionaryNames.remove(self.getDictionaryShortName(filename))
