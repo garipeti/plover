@@ -8,7 +8,7 @@ from dictionarymanager.gui.widget.dmGrid import dmGrid
 from dictionarymanager.store import Store
 from threading import Timer
 from wx._misc import BeginBusyCursor, EndBusyCursor
-from wxPython._core import wxSize, wxOK, WXK_ESCAPE
+from wxPython._core import wxOK, WXK_ESCAPE
 import os
 import plover.config as conf
 import wx

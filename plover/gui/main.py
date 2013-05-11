@@ -86,7 +86,7 @@ class Frame(wx.Frame):
             try:
                 self.steno_engine = app.StenoEngine(self.consume_command)
                 break
-            except InvalidConfigurationError, spe:
+            except (InvalidConfigurationError, ValueError), spe:
                 self.steno_engine = None
                 config_dialog = self._create_config_dialog(
                                                     during_plover_init=True)
@@ -217,7 +217,7 @@ class Frame(wx.Frame):
 
     def _show_quickloader(self, event=None):
         if self.quickLoader is None:
-            self.quickLoader = QuickLoader(self)
+            self.quickLoader = QuickLoader(self.steno_engine, self)
         self.quickLoader.Show()
         return self.quickLoader
     
