@@ -323,10 +323,9 @@ class RtfLoader(DictionaryLoader):
     def load(self, filename):
         """ Decode RTF to dictionary."""
         d = collections.OrderedDict()
-        conf = {}
-        data = DictionaryLoader.load(self, filename)
+        (data, conf) = DictionaryLoader.load(self, filename)
         if data is not None:
-            conf = self.getFormat(data)
+            conf = self.getFormat(data, conf)
             
             keyword_index = defaultdict(list)
             multiple_transformations = []
@@ -383,13 +382,13 @@ class RtfLoader(DictionaryLoader):
             
         print("}", file=out)
         
-    def getFormat(self, s):
-        conf = None
+    def getFormat(self, s, conf):
         i = 0
         if s is not None:
             for l in s.splitlines():
                 if self.HEADER_PATTERN.match(l):
-                    conf = {"header": l}
+                    conf = conf if conf is not None else {}
+                    conf["header"] = l
                 i += 1
                 if i > 10:
                     break

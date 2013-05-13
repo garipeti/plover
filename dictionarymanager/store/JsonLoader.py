@@ -13,10 +13,9 @@ class JsonLoader(DictionaryLoader):
         
     def load(self, filename):
         """Decode JSON to dictionary."""
-        conf = None
-        s = DictionaryLoader.load(self, filename)
+        (s, conf) = DictionaryLoader.load(self, filename)
         if s is not None:
-            conf = self.getFormat(s)
+            conf = self.getFormat(s, conf)
             try:
                 l = self.parse(s)
             except UnicodeDecodeError:
@@ -29,16 +28,19 @@ class JsonLoader(DictionaryLoader):
     def write(self, filename, dictionary, conf = None):
         """Encode dictionary to JSON."""
         conf = conf if type(conf) is dict else {}
-        DictionaryLoader.write(self, filename, json.dumps(dictionary, indent = conf.get("indent"), separators = conf.get("separators")))
+        DictionaryLoader.write(self, 
+                               filename, 
+                               json.dumps(dictionary, indent = conf.get("indent"), separators = conf.get("separators")),
+                               conf
+                               )
         
-    def getFormat(self, s):
-        conf = None
+    def getFormat(self, s, conf):
         if s is not None:
             i = 0
             for line in s.splitlines():
                 match = self.FORMAT_PATTERN.match(line)
                 if match:
-                    conf = {}
+                    conf = conf if conf is not None else {}
                     conf["indent"] = len(match.group(1))
                     conf["separators"] = (match.group(4) + "," + match.group(5),  match.group(2) + ":" + match.group(3))
                     break
