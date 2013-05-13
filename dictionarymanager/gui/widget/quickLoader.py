@@ -2,6 +2,7 @@ from plover.config import get_option_as_set, get_option_as_list, \
     set_list_as_option, save_config
 from plover.steno_dictionary import StenoDictionary
 from threading import Timer
+from wx._misc import BeginBusyCursor, EndBusyCursor
 from wx.grid import EVT_GRID_CELL_CHANGE
 from wxPython._core import wxOK
 from wxPython.grid import wxGrid
@@ -70,12 +71,15 @@ class QuickLoader(wx.Dialog):
             translation = do[0].english
             for (key, value) in self.dictList:
                 if translation == key:
+                    BeginBusyCursor()
                     try:
-                        self.stenoEngine.store.loadDictionary(value)
+                        self.stenoEngine.store.toggleDictionary(value)
                         self.Hide()
                     except ValueError, e:
                         self.error = e
                         wx.CallAfter(self._showError)
+                    finally:
+                        EndBusyCursor()
                     break
             
     

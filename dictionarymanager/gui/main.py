@@ -64,6 +64,8 @@ class dmFrame(wx.Dialog):
         # dictionary store
         self.store = store if store is not None and isinstance(store, Store.Store) else Store.Store(self.config)
         self.store.subscribe("dataChange", self._onDictionaryChange)
+        self.store.subscribe("dictionaryLoaded", self._addDictionaryToSidebar)
+        self.store.subscribe("dictionaryClosed", self._removeDictionaryFromSidebar)
         
         # auxiliary variables
         self._keyTimer = None
@@ -174,10 +176,9 @@ class dmFrame(wx.Dialog):
     def _readDictionary(self, filename):
         try:
             self.store.loadDictionary(filename)
-            self._addDictionaryToSidebar(filename)
         except Exception as e:
             self._showErrorMessage(e)
-    
+        
     def _addDictionaryToSidebar(self, filename):
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
@@ -196,7 +197,7 @@ class dmFrame(wx.Dialog):
         box.Add(menuButton)
         
         self.loadedSizer.Add(box)
-        self.loadedSizer.Layout()
+        self.sizer.Layout()
     
     def _toggleDictionaryMenu(self, evt):
         btn = evt.GetEventObject()
@@ -215,10 +216,18 @@ class dmFrame(wx.Dialog):
     def closeDictionary(self, filename):
         i = self.store.getDictionaryIndexByName(filename)
         if i is not None:
+            BeginBusyCursor()
+            try:
+                self.store.closeDictionary(i)
+            finally:
+                EndBusyCursor()
+            
+            
+    def _removeDictionaryFromSidebar(self, filename, i):
+        if i is not None:
             self.loadedSizer.Hide(i)
             self.loadedSizer.Remove(i)
             self.sizer.Layout()
-            self.store.closeDictionary(i)
 
     def _onDictionaryChange(self, index, hasChanges):
         items = self.loadedSizer.GetChildren()

@@ -50,7 +50,9 @@ class Store():
                             "progress": [], 
                             "dataChange": [], 
                             "tableChange": [],
-                            "dictionaryChange": []
+                            "dictionaryChange": [],
+                            "dictionaryLoaded": [],
+                            "dictionaryClosed": []
                             }
         
     def getCount(self):
@@ -208,6 +210,12 @@ class Store():
             conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION, files)
             conf.save_config(self.config)
     
+    def toggleDictionary(self, filename):
+        if filename in self.dictionaryFilenames:
+            self.closeDictionary(self.dictionaryFilenames.index(filename))
+        else:
+            self.loadDictionary(filename)
+    
     def loadDictionaries(self):
         dict_files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         for dict_file in dict_files:
@@ -255,10 +263,11 @@ class Store():
                         self.data.append(item)
                     
                 self.fireEvent("tableChange", self)
+                self.fireEvent("dictionaryLoaded", filename)
                 return True
         else:
             raise ValueError('Unknown dictionary format %s.' % filename)
-
+        
     def saveDictionaries(self):
         """ Save dictionaries to files """
         
@@ -300,6 +309,7 @@ class Store():
             self.filter(self.filters, True)
         self.removeDictionaryFromActives(filename)
         self.fireEvent("tableChange", self)
+        self.fireEvent("dictionaryClosed", filename, index)
     
     def toggleDictionaryVisibility(self, index):
         """ Show/Hide dictionary (apply dictionary filter) """
