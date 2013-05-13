@@ -164,9 +164,10 @@ class dmFrame(wx.Dialog):
                 BeginBusyCursor()
                 try:
                     self.store.saveDictionary(i, os.path.join(dirname, filename))
+                except Exception, e:
+                    self._showErrorMessage(e)
                 finally:
                     EndBusyCursor()
-                
             else:
                 dlg.Destroy()
     
@@ -174,7 +175,7 @@ class dmFrame(wx.Dialog):
         try:
             self.store.loadDictionary(filename)
             self._addDictionaryToSidebar(filename)
-        except ValueError as e:
+        except Exception as e:
             self._showErrorMessage(e)
     
     def _addDictionaryToSidebar(self, filename):
@@ -207,7 +208,7 @@ class dmFrame(wx.Dialog):
                 self.PopupMenu(self.dictionaryMenus[i], pos)
     
     def _showErrorMessage(self, error):
-        dlg = wx.MessageDialog(self, str(error), style=wxOK)
+        dlg = wx.MessageDialog(self, str(error), style=wxOK | wx.ICON_ERROR)
         dlg.ShowModal()
         dlg.Destroy()
     
@@ -231,13 +232,13 @@ class dmFrame(wx.Dialog):
             try:
                 self.store.saveDictionary(i)
                 self.dictionaryMenus[i].setSaveState(False)
+            except ValueError, e:
+                self._showErrorMessage(e)
             finally:
                 EndBusyCursor()
                 
     def toggleDictionaryVisibility(self, filename):
-        print(filename)
         i = self.store.getDictionaryIndexByName(filename)
-        print(i)
         if i is not None:
             BeginBusyCursor()
             self.grid.MakeCellVisible(0, 0)

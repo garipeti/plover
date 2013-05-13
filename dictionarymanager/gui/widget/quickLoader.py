@@ -91,7 +91,7 @@ class QuickLoader(wx.Dialog):
         self.stenoEngine.translator.remove_listener(self._stenoEngineCallback)
         
     def _showError(self):
-        dlg = wx.MessageDialog(self.parent, str(self.error), style=wxOK)
+        dlg = wx.MessageDialog(self.parent, str(self.error), style=wxOK | wx.ICON_ERROR)
         dlg.ShowModal()
         dlg.Destroy()
         
