@@ -1,6 +1,8 @@
-from plover.config import get_option_as_set
+from plover.config import get_option_as_set, get_option_as_list, \
+    set_list_as_option, save_config
 from plover.steno_dictionary import StenoDictionary
 from threading import Timer
+from wx.grid import EVT_GRID_CELL_CHANGE
 from wxPython._core import wxOK
 from wxPython.grid import wxGrid
 import os.path
@@ -26,12 +28,17 @@ class QuickLoader(wx.Dialog):
         
         # Grid
         self.grid = wxGrid(self)
-        self.grid.CreateGrid(0, 3)
-        self.grid.SetColSize(0, 50)
-        self.grid.SetColSize(1, 100)
-        self.grid.SetColSize(2, 150)
+        self.grid.CreateGrid(0, 2)
+        self.grid.SetColSize(0, 100)
+        self.grid.SetColSize(1, 150)
         self.grid.SetRowLabelSize(0)
         self.grid.SetColLabelSize(0)
+        
+        attr = wx.grid.GridCellAttr()
+        attr.SetReadOnly(True)
+        self.grid.SetColAttr(1, attr)
+        
+        self.grid.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
         
         # dictionary lists
         self.loadedDictList = None
@@ -43,6 +50,21 @@ class QuickLoader(wx.Dialog):
         
         self.SetSizer(self.sizer)
         
+    def _onCellChange(self, evt):
+        row = evt.Row
+        name = self.grid.GetCellValue(row, 0)
+        
+        (shortcut, filename) = list(self.dictList)[row]
+        entry = filename
+        if shortcut != "":
+            entry += ";" + shortcut
+        cfgDictList = get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
+        cfgDictList.remove(entry)
+        cfgDictList.add(filename + ";" + name)
+        
+        set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION, cfgDictList)
+        save_config(self.config)
+    
     def _stenoEngineCallback(self, undo, do, prev):
         if len(do) > 0:
             translation = do[0].english
@@ -74,9 +96,8 @@ class QuickLoader(wx.Dialog):
         for (key, value) in self.dictList:
             if self.grid.GetNumberRows() <= index:
                 self.grid.AppendRows()
-            self.grid.SetCellValue(index, 0, str(index+1))
-            self.grid.SetCellValue(index, 1, key)
-            self.grid.SetCellValue(index, 2, os.path.basename(value))
+            self.grid.SetCellValue(index, 0, key)
+            self.grid.SetCellValue(index, 1, os.path.basename(value))
             index += 1
         
         wx.Dialog.Show(self)
