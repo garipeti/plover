@@ -218,7 +218,10 @@ class Frame(wx.Frame):
     def _show_quickloader(self, event=None):
         if self.quickLoader is None:
             self.quickLoader = QuickLoader(self.steno_engine, self)
-        self.quickLoader.Show()
+        if self.quickLoader.IsShown():
+            self.quickLoader.Hide()
+        else:
+            self.quickLoader.Show()
         return self.quickLoader
     
     def _show_dictionary_manager(self, event=None):

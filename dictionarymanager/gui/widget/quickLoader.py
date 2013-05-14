@@ -89,12 +89,12 @@ class QuickLoader(wx.Dialog):
         self.loadedDictList = get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         cfgDictList = get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
         self.dictList = set()
-        for v in cfgDictList:
-            x = v.split(";")
+        for item in cfgDictList:
+            path = item.split(";")
             shortcut = ""
-            if len(x) > 1:
-                shortcut = x.pop(-1)
-            self.dictList.add((shortcut, ";".join(x).strip()))
+            if len(path) > 1:
+                shortcut = path.pop(-1)
+            self.dictList.add((shortcut, ";".join(path).strip()))
         
         index = 0
         for (key, value) in self.dictList:

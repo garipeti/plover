@@ -189,9 +189,20 @@ class Store():
         
     def addDictionaryToRecents(self, filename):
         files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
-        files.add(filename)
-        conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION, files)
-        conf.save_config(self.config)
+        
+        for item in files:
+            path = item.split(";")
+            shortcut = ""
+            if len(path) > 1:
+                shortcut = path.pop(-1)
+            name = ";".join(path).strip()
+            
+            if filename == name:
+                break
+        else:
+            files.add(filename)
+            conf.set_list_as_option(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION, files)
+            conf.save_config(self.config)
     
     def addDictionaryToActives(self, filename):
         # put in loaded list
