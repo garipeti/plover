@@ -10,6 +10,7 @@ from wx._core import EVT_MOUSEWHEEL
 
 
 class dmGrid(wxGrid):
+    """ Dictionary Manager's grid """
     
     GRID_LABEL_STROKE = "Stroke"
     GRID_LABEL_TRANSLATION = "Translation"
@@ -22,9 +23,12 @@ class dmGrid(wxGrid):
         self._changedRow = None
 
     def CreateGrid(self, store, rows, cols):
+        """ Create the grid """
+        
         wxGrid.CreateGrid(self, rows, cols)
         self.store = store
         
+        # Set GridTable
         self._table = dmGridTable(self.store, [Store.ATTR_STROKE, 
                                                Store.ATTR_TRANSLATION, 
                                                Store.ATTR_DICTIONARIES], 
@@ -34,9 +38,11 @@ class dmGrid(wxGrid):
                                    })
         self.SetTable(self._table)
     
+        # Sort attributes
         self._sortingColumn = 0
         self._sortingAsc = None
         
+        # Event listeners
         self.Bind(EVT_GRID_LABEL_LEFT_CLICK, self._onLabelClick)
         self.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
         self.Bind(EVT_MOUSEWHEEL, self._onMouseScroll)
@@ -46,12 +52,14 @@ class dmGrid(wxGrid):
         self.store.subscribe("tableChange", self._onTableChange)
         
     def _onMouseScroll(self, evt):
+        """ Mouse scroll listener """
         if evt.ControlDown():
             self.changeZoomLevel(evt.GetWheelRotation())
         else:
             evt.Skip()
 
     def changeZoomLevel(self, direction):
+        """ Change grid's letter size and row height. """
         font = self.GetDefaultCellFont()
         size = font.GetPointSize()
         if direction > 0:
@@ -72,6 +80,7 @@ class dmGrid(wxGrid):
         self._onTableChange(self.store)
     
     def _onTableChange(self, store):
+        """ Call GridTable's ResetView """
         self._table.ResetView(self)
     
     def _onLabelClick(self, evt):
@@ -94,6 +103,8 @@ class dmGrid(wxGrid):
             
     
     def _changeGridLabel(self):
+        """ Change grid's column labels """
+        
         directionLabel = ""
         if self._sortingAsc is not None:
             directionLabel = " (asc)" if self._sortingAsc else " (desc)"
@@ -110,10 +121,12 @@ class dmGrid(wxGrid):
         # TODO: find an event instead of a timer
         # grid needs time to finish up before we can reorder grid
         self.timer = wx.Timer(self)
-        self.Bind(EVT_TIMER, self.afterChange, self.timer)
+        self.Bind(EVT_TIMER, self._afterChange, self.timer)
         self.timer.Start(10)
         
-    def afterChange(self, evt):
+    def _afterChange(self, evt):
+        """ Reorder the rows after cell change. """
+        
         self.timer.Stop()
         self.timer = None
         self.store.reSort()

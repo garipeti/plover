@@ -42,7 +42,7 @@ class Store():
         self.cmpFn = None
         self.sortColumn = None
         
-        # subscribers
+        # custom events
         self.subscribers = {
                             "insert": [], 
                             "delete": [], 
@@ -70,6 +70,8 @@ class Store():
             callback(*args, **kwargs)
             
     def sort(self, column = None, reverse = None):
+        """ Sort rows based on the given column and direction. """
+        
         self.sortColumn = column
         if column is not None:
             if reverse:
@@ -83,9 +85,12 @@ class Store():
             self._sort()
     
     def sortByFilter(self):
+        """ Sort rows when there is an active filter. """
+        
         # if there are filters defined it sorts by the weight of the match
         if self.sortColumn is None:
             if len(self.filterFnList) > 0:
+                # calculate the weight of the match
                 f = lambda pattern, column: (
                         lambda a: (
                             5 if pattern == a[column] else
@@ -103,6 +108,7 @@ class Store():
                     self.cmpFn = (lambda l: lambda a, b: cmp(sum([x(b) for x in l]), sum([x(a) for x in l])))(t)
                 
     def _resetOrder(self):
+        """ Remove any sorting and set back the default order. """
         self.sortColumn = None
         identifiers = {}
         self.rows = []
@@ -116,6 +122,7 @@ class Store():
         self.fireEvent("tableChange", self)
     
     def _sort(self):
+        """ Call the proper sorting method """
         if self.sortColumn is not None:
             self.rows.sort(cmp=self.cmpFn)
         elif len(self.filterFnList) > 0:
@@ -126,6 +133,8 @@ class Store():
         self.fireEvent("tableChange", self)
         
     def _insertItem(self, item):
+        """ Insert a new item. """
+        
         self.strokes[self.getIdentifier(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION])] = item
         self.rows.insert(0, item)
         self.data.append(item)
@@ -133,6 +142,8 @@ class Store():
         return 0
         
     def _removeItem(self, index):
+        """ Remove an item """
+        
         item = self.rows[index]
         self.strokes.pop(self.getIdentifier(item[self.ATTR_STROKE], item[self.ATTR_TRANSLATION]), None)
         self.rows.pop(index)
@@ -140,6 +151,8 @@ class Store():
         return index
         
     def findPlaceForNewItem(self, item, start, end):
+        """ Deprecated - Find place for a new row based on the current sorting. """
+        
         if self.cmpFn is None:
             return end + 1
         
@@ -155,11 +168,15 @@ class Store():
             return self.findPlaceForNewItem(item, middle+1, end)
     
     def filterFn(self, row, filters = None):
+        """ Filter row """
+        
         if filters is None:
             filters = self.filterFnList
         return not (False in [f(row) for f in filters])
     
     def filter(self, newFilters, force = False):
+        """ Change filter """
+        
         if not force and len(self.filters.keys()) == len(newFilters.keys()) and not False in [True if c in self.filters and self.filters[c] == p else False for c, p in newFilters.iteritems()]:
             return;
         
@@ -179,6 +196,8 @@ class Store():
         self._applyFilter()
         
     def _applyFilter(self):
+        """ Iterate through all the rows and collect the matching items in rows list. """
+        
         self.rows = []
         for index in range(len(self.data)):
             item = self.data[index]
@@ -188,6 +207,8 @@ class Store():
         self._sort()
         
     def addDictionaryToRecents(self, filename):
+        """ Add dictionary filename to recent list if it is not yet there. """
+        
         files = conf.get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
         
         for item in files:
@@ -205,7 +226,9 @@ class Store():
             conf.save_config(self.config)
     
     def addDictionaryToActives(self, filename):
-        # put in loaded list
+        """ Add dictionary filename to active and recent list if necessary. """
+        
+        # put it to active list
         files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         if filename not in files:
             files.append(filename)
@@ -214,6 +237,8 @@ class Store():
         self.addDictionaryToRecents(filename)
     
     def removeDictionaryFromActives(self, filename):
+        """ Remove a dictionary filename from active list. """
+        
         # remove from loaded list
         files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         if filename in files:
@@ -222,12 +247,16 @@ class Store():
             conf.save_config(self.config)
     
     def toggleDictionary(self, filename):
+        """ Load/close a dictionary """
+        
         if filename in self.dictionaryFilenames:
             self.closeDictionary(self.dictionaryFilenames.index(filename))
         else:
             self.loadDictionary(filename)
     
     def loadDictionaries(self):
+        """ Load all the dictionaries from config """
+        
         dict_files = conf.get_option_as_list(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         for dict_file in dict_files:
             self.loadDictionary(dict_file)
@@ -356,7 +385,7 @@ class Store():
         self.filterFn = filterFn
     
     def changeStroke(self, row, stroke):
-        """ Change Stroke in item """
+        """ Change the stroke value in row """
         
         item = self.rows[row]
         orig = item[self.ATTR_STROKE]
@@ -368,7 +397,7 @@ class Store():
             self.fireEvent("dataChange", self.getDictionaryIndexByName(filename), self.dictionaries[filename].hasChanges())
         
     def changeTranslation(self, row, translation):
-        """ Change Translation in item """
+        """ Change the translation in row """
         
         item = self.rows[row]
         orig = item[self.ATTR_TRANSLATION]
@@ -387,6 +416,7 @@ class Store():
         # dataChange event already fired
     
     def insertItem(self, item = None):
+        """ Insert an empty row """
         if item is None:
             item = {self.ATTR_STROKE: "", self.ATTR_TRANSLATION: "", self.ATTR_DICTIONARIES: []}
         return self._insertItem(item)
@@ -440,6 +470,7 @@ class Store():
         return None
     
     def getMerged(self):
+        """ Merge dictionaries into one """
         merged = StenoDictionary()
         items = self.dictionaries.values()
         for i in range(len(items)-1, -1, -1):

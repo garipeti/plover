@@ -7,7 +7,8 @@ class dmGridTable(PyGridTableBase):
     A custom wx.Grid Table using user supplied data
     """
     def __init__(self, store, colkeys, colnames, plugins):
-        """data is a list of rows"""
+        """ Init GridTableBase with a Store. """
+        
         # The base class must be initialized *first*
         PyGridTableBase.__init__(self)
         self.store = store

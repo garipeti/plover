@@ -15,6 +15,8 @@ class Dictionary(Mapping):
         self.actual = collections.OrderedDict()
         
     def load(self, filename, loader):
+        """ Loads a dictionary from the given file with the given loader. """
+        
         data, conf = loader.load(filename)
         if data is not None:
             self.data = data
@@ -24,9 +26,13 @@ class Dictionary(Mapping):
         return False
     
     def write(self, dest, loader):
+        """ Writes this dictionary to the given file with the given loader. """
+        
         loader.write(dest, self.actual, self.conf)
     
     def applyChanges(self):
+        """ Apply changes to the dictionary and return the generated dictionary. """
+        
         data = collections.OrderedDict()
         for stroke, translation in self.data.iteritems():
             if self.createIdentifier(stroke, translation) in self.removed:
@@ -72,6 +78,8 @@ class Dictionary(Mapping):
 
     # do not remove items from dict to keep order
     def remove(self, stroke, translation):
+        """ Remove an entry from the dictionary. """
+        
         # if this is in inserted list then just remove from it
         identifier = self.createIdentifier(stroke, translation)
         if identifier in self.inserted:
@@ -86,6 +94,8 @@ class Dictionary(Mapping):
         self.applyChanges()
     
     def insert(self, stroke, translation):
+        """ Insert a new entry to the dictionary. """
+        
         # if this is in removed list then just remove from it
         identifier = self.createIdentifier(stroke, translation)
         if identifier in self.removed:
@@ -95,6 +105,8 @@ class Dictionary(Mapping):
         self.applyChanges()
         
     def change(self, originalStroke, originalTranslation, stroke, translation):
+        """ Change an entry in the dictionary. """
+        
         if self.inserted.pop(self.createIdentifier(originalStroke, originalTranslation), None) is not None:
             self.inserted[self.createIdentifier(stroke, translation)] = (stroke, translation)
         else:

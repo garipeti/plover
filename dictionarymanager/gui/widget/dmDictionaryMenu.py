@@ -1,6 +1,7 @@
 import wx
 
 class dmDictionaryMenu(wx.Menu):
+    """ Dictionary action list menu """
     
     CLOSE_LABEL = "Close"
     SAVE_LABEL = "Save"
@@ -17,6 +18,7 @@ class dmDictionaryMenu(wx.Menu):
         self.closeCallback = close_callback
         self.hideCallback = hide_callback
         
+        # menu items
         self.saveItemId = wx.NewId()
         item = wx.MenuItem(self, self.saveItemId, self.SAVE_LABEL)
         self.AppendItem(item)
@@ -32,19 +34,25 @@ class dmDictionaryMenu(wx.Menu):
         self.Bind(wx.EVT_MENU, self._close, item)
 
     def setSaveState(self, state):
+        """ Set the save menu item's state."""
         self.Enable(self.saveItemId, state)
         
     def toggleVisibility(self):
+        """ Change visibility menu item. """
         self.visibilityItem.SetItemLabel(self.HIDE_LABEL if self.visibilityItem.GetLabel() == self.SHOW_LABEL else self.SHOW_LABEL)
     
     def _close(self, event):
+        """ On close click """
         self.closeCallback(self.dictionaryName)
 
     def _save(self, event):
+        """ On save click """
         self.saveCallback(self.dictionaryName)
 
     def _saveAs(self, event):
+        """ On save as click """
         self.saveAsCallback(self.dictionaryName)
 
     def _hide(self, event):
+        """ On hide click """
         self.hideCallback(self.dictionaryName)

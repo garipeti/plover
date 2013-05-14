@@ -35,10 +35,12 @@ class QuickLoader(wx.Dialog):
         self.grid.SetRowLabelSize(0)
         self.grid.SetColLabelSize(0)
         
+        # Set second column readonly
         attr = wx.grid.GridCellAttr()
         attr.SetReadOnly(True)
         self.grid.SetColAttr(1, attr)
         
+        # Cell change listener
         self.grid.Bind(EVT_GRID_CELL_CHANGE, self._onCellChange)
         
         # dictionary lists
@@ -52,9 +54,12 @@ class QuickLoader(wx.Dialog):
         self.SetSizer(self.sizer)
         
     def _onCellChange(self, evt):
+        """ Cell change listener """
+        
         row = evt.Row
         name = self.grid.GetCellValue(row, 0)
         
+        # write to config file
         (shortcut, filename) = list(self.dictList)[row]
         entry = filename
         if shortcut != "":
@@ -67,6 +72,7 @@ class QuickLoader(wx.Dialog):
         save_config(self.config)
     
     def _stenoEngineCallback(self, undo, do, prev):
+        """ Steno engine callback """
         if len(do) > 0:
             translation = do[0].english
             for (key, value) in self.dictList:
@@ -84,8 +90,10 @@ class QuickLoader(wx.Dialog):
             
     
     def Show(self):
+        """ Show dialog """
         self.stenoEngine.translator.add_listener(self._stenoEngineCallback)
         
+        # collect recent dictionaries
         self.loadedDictList = get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_FILE_OPTION)
         cfgDictList = get_option_as_set(self.config, conf.DICTIONARY_CONFIG_SECTION, conf.DICTIONARY_LIST_OPTION)
         self.dictList = set()
@@ -96,6 +104,7 @@ class QuickLoader(wx.Dialog):
                 shortcut = path.pop(-1)
             self.dictList.add((shortcut, ";".join(path).strip()))
         
+        # insert dictionaries into grid
         index = 0
         for (key, value) in self.dictList:
             if self.grid.GetNumberRows() <= index:
@@ -108,14 +117,20 @@ class QuickLoader(wx.Dialog):
         self.Fit()
         
     def Hide(self):
+        """ Hide dialog """
+        
         # we cannot remove listener right now because probably we are in a loop over those listeners
         Timer(0.1, self._removeListener)
         wx.Dialog.Hide(self)
         
     def _removeListener(self):
+        """ Unsubscribe listener """
+        
         self.stenoEngine.translator.remove_listener(self._stenoEngineCallback)
         
     def _showError(self):
+        """ Show error message """
+        
         dlg = wx.MessageDialog(self.parent, str(self.error), style=wxOK | wx.ICON_ERROR)
         dlg.ShowModal()
         dlg.Destroy()

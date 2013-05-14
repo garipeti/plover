@@ -7,6 +7,8 @@ class dmGridCellRenderer(PyGridCellRenderer):
         PyGridCellRenderer.__init__(self)
     
     def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        """ Draw cell """
+        
         if col == 2:
             text = ", ".join(grid.store.getDictionaryShortNamesForRow(row))
         else:

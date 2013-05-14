@@ -12,7 +12,7 @@ class JsonLoader(DictionaryLoader):
         DictionaryLoader.__init__(self)
         
     def load(self, filename):
-        """Decode JSON to dictionary."""
+        """Decode JSON into dictionary."""
         (s, conf) = DictionaryLoader.load(self, filename)
         if s is not None:
             conf = self.getFormat(s, conf)
@@ -35,6 +35,7 @@ class JsonLoader(DictionaryLoader):
                                )
         
     def getFormat(self, s, conf):
+        """ Get specific file format. """
         if s is not None:
             i = 0
             for line in s.splitlines():

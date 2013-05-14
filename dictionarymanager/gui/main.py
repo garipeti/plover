@@ -28,7 +28,7 @@ class DictionaryManagerGUI(wx.App):
         return True
 
 class dmFrame(wx.Dialog):
-    """ Main dmFrame """
+    """ Main Dictionary Manager dialog """
     
     TITLE = "Dictionary Manager"
     LOAD_BUTTON_NAME = "Load dictionary"
@@ -174,12 +174,16 @@ class dmFrame(wx.Dialog):
                 dlg.Destroy()
     
     def _readDictionary(self, filename):
+        """ Load a dictionary from file """
+        
         try:
             self.store.loadDictionary(filename)
         except Exception as e:
             self._showErrorMessage(e)
         
     def _addDictionaryToSidebar(self, filename):
+        """ Add loaded dictionary's name and control to the sidebar. """
+        
         box = wx.BoxSizer(wx.HORIZONTAL)
         box.Add(wx.StaticText(self, wx.ID_ANY, label=self.store.getDictionaryShortName(filename)), 
                 flag=wx.TOP|wx.BOTTOM|wx.RIGHT|wx.ALIGN_CENTER_VERTICAL)
@@ -200,6 +204,8 @@ class dmFrame(wx.Dialog):
         self.sizer.Layout()
     
     def _toggleDictionaryMenu(self, evt):
+        """ Show dictionary's menu """
+        
         btn = evt.GetEventObject()
         pos = btn.GetPosition()
         pos.Set(pos.Get()[0], pos.Get()[1] + btn.GetSize().GetHeight())
@@ -209,11 +215,15 @@ class dmFrame(wx.Dialog):
                 self.PopupMenu(self.dictionaryMenus[i], pos)
     
     def _showErrorMessage(self, error):
+        """ Show error message """
+        
         dlg = wx.MessageDialog(self, str(error), style=wxOK | wx.ICON_ERROR)
         dlg.ShowModal()
         dlg.Destroy()
     
     def closeDictionary(self, filename):
+        """ Close dictionary with the given filename """
+        
         i = self.store.getDictionaryIndexByName(filename)
         if i is not None:
             BeginBusyCursor()
@@ -222,19 +232,24 @@ class dmFrame(wx.Dialog):
             finally:
                 EndBusyCursor()
             
-            
     def _removeDictionaryFromSidebar(self, filename, i):
+        """ Remove label and control from the sidebar at position i. """
+        
         if i is not None:
             self.loadedSizer.Hide(i)
             self.loadedSizer.Remove(i)
             self.sizer.Layout()
 
     def _onDictionaryChange(self, index, hasChanges):
+        """ Dictionary change listener """
+        
         items = self.loadedSizer.GetChildren()
         if len(items) > index:
             self.dictionaryMenus[index].setSaveState(hasChanges)
     
     def saveDictionary(self, filename):
+        """ Save dictionary """
+        
         i = self.store.getDictionaryIndexByName(filename)
         if i is not None:
             BeginBusyCursor()
@@ -247,6 +262,8 @@ class dmFrame(wx.Dialog):
                 EndBusyCursor()
                 
     def toggleDictionaryVisibility(self, filename):
+        """ Toggle item's visibility """
+        
         i = self.store.getDictionaryIndexByName(filename)
         if i is not None:
             BeginBusyCursor()
@@ -319,7 +336,11 @@ class dmFrame(wx.Dialog):
             event.Skip()
 
     def focusOnFilterStroke(self):
+        """ Put the focus on Stroke field"""
+        
         self.searchStrokeField.SetFocus()
 
     def focusOnFilterTranslation(self):
+        """ Put the focus on Translation field"""
+        
         self.searchTranslationField.SetFocus()

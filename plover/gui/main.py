@@ -216,6 +216,7 @@ class Frame(wx.Frame):
         return dialog
 
     def _show_quickloader(self, event=None):
+        """ Open Dictionary Quick Loader. """
         if self.quickLoader is None:
             self.quickLoader = QuickLoader(self.steno_engine, self)
         if self.quickLoader.IsShown():
@@ -225,17 +226,21 @@ class Frame(wx.Frame):
         return self.quickLoader
     
     def _show_dictionary_manager(self, event=None):
+        """ Open Dictionary Manager. """
         if self.dm is None:
             self.dm = dictionarymanager.dmFrame(self.steno_engine.store, self)
         self.dm.Show()
         self.dm.Raise()
         self.dm.Iconize(False)
         return self.dm
+    
     def _focus_on_dm_filter_stroke(self, event=None):
+        """ Open Dictionary Manager and put focus on stroke filter. """
         self._show_dictionary_manager()
         self.dm.focusOnFilterStroke()
 
     def _focus_on_dm_filter_translation(self, event=None):
+        """ Open Dictionary Manager and put focus on translation filter. """
         self._show_dictionary_manager()
         self.dm.focusOnFilterTranslation()
 

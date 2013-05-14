@@ -321,7 +321,7 @@ class RtfLoader(DictionaryLoader):
         DictionaryLoader.__init__(self)
         
     def load(self, filename):
-        """ Decode RTF to dictionary."""
+        """ Decode RTF into dictionary."""
         d = collections.OrderedDict()
         (data, conf) = DictionaryLoader.load(self, filename)
         if data is not None:
@@ -383,6 +383,7 @@ class RtfLoader(DictionaryLoader):
         print("}", file=out)
         
     def getFormat(self, s, conf):
+        """ Get specific file format. """
         i = 0
         if s is not None:
             for l in s.splitlines():
