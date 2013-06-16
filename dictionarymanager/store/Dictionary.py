@@ -85,11 +85,13 @@ class Dictionary(Mapping):
         if identifier in self.inserted:
             self.inserted.pop(identifier)
         else:
-            self.removed[identifier] = (stroke, translation)
             for key, value in self.changed.iteritems():
                 if value == (stroke, translation):
                     self.changed.pop(key)
+                    self.removed[key] = self.parseIdentifier(key)
                     break
+            else:
+                self.removed[identifier] = (stroke, translation)
                     
         self.applyChanges()
     
@@ -125,5 +127,10 @@ class Dictionary(Mapping):
         return len(self.inserted) > 0 or len(self.changed) > 0 or len(self.removed) > 0
 
     def createIdentifier(self, stroke, translation):
-        return "__" + stroke + "__" + translation + "__"
+        return "__|__" + stroke + "__|__" + translation + "__|__"
         
+    def parseIdentifier(self, identifier):
+        values = identifier.split("__|__")
+        if len(values) != 4:
+            raise Exception
+        return (values[1], values[2])
